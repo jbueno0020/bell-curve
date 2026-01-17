@@ -56,6 +56,9 @@ function BellCurveApp() {
   const [currentProfileId, setCurrentProfileId] = useState(null);
   const [showProfilesPanel, setShowProfilesPanel] = useState(false);
 
+  // Bell curve label display options
+  const [showLabelsOnCurve, setShowLabelsOnCurve] = useState(false);
+
   // Load branding and profiles from localStorage on mount
   React.useEffect(() => {
     try {
@@ -305,13 +308,31 @@ function BellCurveApp() {
     return Math.round(percentile).toString();
   };
 
+  // Format percentile with proper ordinal suffix (1st, 2nd, 3rd, etc.)
+  const formatPercentile = (percentileStr) => {
+    if (percentileStr === '>99' || percentileStr === '<1') return percentileStr;
+
+    const num = parseInt(percentileStr);
+    const lastDigit = num % 10;
+    const lastTwoDigits = num % 100;
+
+    // Special cases: 11th, 12th, 13th
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+      return num + 'th';
+    }
+
+    // Regular cases
+    if (lastDigit === 1) return num + 'st';
+    if (lastDigit === 2) return num + 'nd';
+    if (lastDigit === 3) return num + 'rd';
+    return num + 'th';
+  };
+
   // Generate comprehensive assessment summary
   const generateSummary = () => {
     if (tests.length === 0) return '';
 
     const sortedTests = [...tests].sort((a, b) => b.score - a.score);
-    const scores = tests.map(t => t.score);
-    const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 
     // Categorize scores
     const veryHigh = tests.filter(t => t.score >= 130);
@@ -322,19 +343,10 @@ function BellCurveApp() {
 
     let summary = [];
 
-    // Overall performance statement
-    if (avgScore >= 115) {
-      summary.push(`${studentName || 'The student'} demonstrates strong overall cognitive abilities, with an average standard score of ${avgScore} across ${tests.length} assessment${tests.length > 1 ? 's' : ''}.`);
-    } else if (avgScore >= 85) {
-      summary.push(`${studentName || 'The student'} demonstrates average cognitive abilities, with an average standard score of ${avgScore} across ${tests.length} assessment${tests.length > 1 ? 's' : ''}.`);
-    } else {
-      summary.push(`${studentName || 'The student'}'s assessment results show an average standard score of ${avgScore} across ${tests.length} assessment${tests.length > 1 ? 's' : ''}.`);
-    }
-
     // Strengths
     if (veryHigh.length > 0 || high.length > 0) {
       const strengths = [...veryHigh, ...high];
-      summary.push(`Notable strengths were observed in ${strengths.map(t => `${t.name} (${t.score}, ${getPercentileRank(t.score)}th percentile)`).join(', ')}.`);
+      summary.push(`${studentName || 'The student'} demonstrates notable strengths in ${strengths.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}.`);
     }
 
     // Average performance areas
@@ -345,7 +357,7 @@ function BellCurveApp() {
     // Areas of concern
     if (low.length > 0 || veryLow.length > 0) {
       const concerns = [...low, ...veryLow];
-      summary.push(`Areas that may benefit from additional support include ${concerns.map(t => `${t.name} (${t.score}, ${getPercentileRank(t.score)}th percentile)`).join(', ')}.`);
+      summary.push(`Areas that may benefit from additional support include ${concerns.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}.`);
     }
 
     // Score variability
@@ -1278,6 +1290,20 @@ function BellCurveApp() {
                         title={color.name}
                       />
                     ))}
+                    <input
+                      type="color"
+                      value={newTest.color}
+                      onChange={(e) => setNewTest({ ...newTest, color: e.target.value })}
+                      title="Custom color"
+                      style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '8px',
+                        border: '3px solid rgba(255, 255, 255, 0.3)',
+                        cursor: 'pointer',
+                        background: 'transparent',
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -1339,7 +1365,7 @@ function BellCurveApp() {
                             fontSize: '13px',
                             color: 'rgba(255, 255, 255, 0.5)',
                           }}>
-                            Score: {test.score} ({getPercentileRank(test.score)}th %ile) • {getScoreDescription(test.score)}
+                            Score: {test.score} ({formatPercentile(getPercentileRank(test.score))} %ile) • {getScoreDescription(test.score)}
                           </div>
                         </div>
                         <button
@@ -1612,15 +1638,28 @@ function BellCurveApp() {
             </div>
 
             <div className="chart-container" style={{ marginBottom: '32px' }}>
-              {/* Hover instruction */}
-              <p style={{
-                margin: '0 0 16px 0',
-                fontSize: '13px',
-                color: 'rgba(255, 255, 255, 0.5)',
-                textAlign: 'center',
+              {/* Hover instruction and label toggle */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '16px',
               }}>
-                💡 Hover over any score marker to see the test name
-              </p>
+                <p style={{
+                  margin: 0,
+                  fontSize: '13px',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                }}>
+                  💡 Hover over any score marker to see the test name
+                </p>
+                <button
+                  className="control-btn no-print"
+                  onClick={() => setShowLabelsOnCurve(!showLabelsOnCurve)}
+                  style={{ fontSize: '12px' }}
+                >
+                  {showLabelsOnCurve ? '🏷️ Hide Labels' : '🏷️ Show Labels'}
+                </button>
+              </div>
               
               <svg viewBox="0 0 800 440" style={{ width: '100%', height: 'auto' }}>
                 {/* Grid lines */}
@@ -1702,7 +1741,7 @@ function BellCurveApp() {
                       fontFamily="Nunito, sans-serif"
                       fontStyle="italic"
                     >
-                      {getPercentileRank(score)}th %ile
+                      {formatPercentile(getPercentileRank(score))} %ile
                     </text>
                   </g>
                 ))}
@@ -1838,10 +1877,57 @@ function BellCurveApp() {
                             fontWeight="600"
                             fontFamily="Nunito, sans-serif"
                           >
-                            {getPercentileRank(test.score)}th Percentile
+                            {formatPercentile(getPercentileRank(test.score))} Percentile
                           </text>
                         </g>
                       )}
+                    </g>
+                  );
+                })}
+
+                {/* Test name labels - always shown in print, toggle in screen view */}
+                {(showLabelsOnCurve || typeof window !== 'undefined') && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index, array) => {
+                  // Calculate label position - above the marker
+                  const labelY = y - 35;
+                  const labelX = x;
+
+                  // Determine text anchor based on position to avoid edge overflow
+                  let textAnchor = 'middle';
+                  let adjustedX = labelX;
+
+                  if (labelX < 100) {
+                    textAnchor = 'start';
+                    adjustedX = labelX + 25;
+                  } else if (labelX > 700) {
+                    textAnchor = 'end';
+                    adjustedX = labelX - 25;
+                  }
+
+                  return (
+                    <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
+                      {/* Label background for better readability */}
+                      <rect
+                        x={textAnchor === 'middle' ? adjustedX - test.name.length * 3.5 - 6 : textAnchor === 'start' ? adjustedX - 6 : adjustedX - test.name.length * 7 - 6}
+                        y={labelY - 12}
+                        width={test.name.length * 7 + 12}
+                        height="18"
+                        rx="4"
+                        fill="rgba(26, 26, 46, 0.9)"
+                        stroke={test.color}
+                        strokeWidth="1"
+                      />
+                      {/* Test name label */}
+                      <text
+                        x={adjustedX}
+                        y={labelY}
+                        textAnchor={textAnchor}
+                        fill={test.color}
+                        fontSize="10"
+                        fontWeight="700"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {test.name}
+                      </text>
                     </g>
                   );
                 })}
@@ -1925,7 +2011,7 @@ function BellCurveApp() {
                             fontSize: '13px',
                             color: 'rgba(255, 255, 255, 0.5)',
                           }}>
-                            Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({getPercentileRank(test.score)}th) • {getScoreDescription(test.score)}
+                            Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))}) • {getScoreDescription(test.score)}
                           </div>
                         </div>
                       </div>
@@ -1994,7 +2080,7 @@ function BellCurveApp() {
                       fontWeight: 700,
                       marginBottom: '6px',
                     }}>
-                      {getPercentileRank(test.score)}th Percentile
+                      {formatPercentile(getPercentileRank(test.score))} Percentile
                     </div>
                     <div style={{
                       fontSize: '13px',
