@@ -42,6 +42,137 @@ function BellCurveApp() {
   const [visibleTestIds, setVisibleTestIds] = useState(new Set());
   const [hoveredTestId, setHoveredTestId] = useState(null);
 
+  // Branding state
+  const [branding, setBranding] = useState({
+    schoolName: '',
+    schoolLogo: '',
+    primaryColor: '#667eea',
+    footerText: '',
+  });
+  const [showBrandingPanel, setShowBrandingPanel] = useState(false);
+
+  // Student profiles state
+  const [savedProfiles, setSavedProfiles] = useState([]);
+  const [currentProfileId, setCurrentProfileId] = useState(null);
+  const [showProfilesPanel, setShowProfilesPanel] = useState(false);
+
+  // Load branding and profiles from localStorage on mount
+  React.useEffect(() => {
+    try {
+      const savedBranding = localStorage.getItem('bellcurve_branding');
+      if (savedBranding) {
+        setBranding(JSON.parse(savedBranding));
+      }
+
+      const profiles = localStorage.getItem('bellcurve_profiles');
+      if (profiles) {
+        setSavedProfiles(JSON.parse(profiles));
+      }
+    } catch (error) {
+      console.error('Error loading data from localStorage:', error);
+    }
+  }, []);
+
+  // Save branding to localStorage whenever it changes
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('bellcurve_branding', JSON.stringify(branding));
+    } catch (error) {
+      console.error('Error saving branding:', error);
+    }
+  }, [branding]);
+
+  // Save current profile
+  const saveCurrentProfile = () => {
+    if (!studentName) {
+      alert('Please enter a student name before saving');
+      return;
+    }
+
+    const profile = {
+      id: currentProfileId || Date.now(),
+      studentName,
+      assessmentDate,
+      tests: tests.map(t => ({ ...t })),
+      savedAt: new Date().toISOString(),
+    };
+
+    const updatedProfiles = currentProfileId
+      ? savedProfiles.map(p => p.id === currentProfileId ? profile : p)
+      : [...savedProfiles, profile];
+
+    setSavedProfiles(updatedProfiles);
+    setCurrentProfileId(profile.id);
+
+    try {
+      localStorage.setItem('bellcurve_profiles', JSON.stringify(updatedProfiles));
+      alert(`Profile saved successfully for ${studentName}!`);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Error saving profile. Please try again.');
+    }
+  };
+
+  // Load a profile
+  const loadProfile = (profile) => {
+    setStudentName(profile.studentName);
+    setAssessmentDate(profile.assessmentDate);
+    setTests(profile.tests.map(t => ({ ...t })));
+    setCurrentProfileId(profile.id);
+    setVisibleTestIds(new Set(profile.tests.map(t => t.id)));
+    setShowProfilesPanel(false);
+    setMode('input');
+  };
+
+  // Delete a profile
+  const deleteProfile = (profileId) => {
+    if (confirm('Are you sure you want to delete this profile?')) {
+      const updatedProfiles = savedProfiles.filter(p => p.id !== profileId);
+      setSavedProfiles(updatedProfiles);
+
+      try {
+        localStorage.setItem('bellcurve_profiles', JSON.stringify(updatedProfiles));
+        if (currentProfileId === profileId) {
+          setCurrentProfileId(null);
+        }
+      } catch (error) {
+        console.error('Error deleting profile:', error);
+      }
+    }
+  };
+
+  // Start a new profile
+  const startNewProfile = () => {
+    if (tests.length > 0 || studentName) {
+      if (!confirm('Start a new profile? Any unsaved changes will be lost.')) {
+        return;
+      }
+    }
+    setStudentName('');
+    setAssessmentDate('');
+    setTests([]);
+    setCurrentProfileId(null);
+    setVisibleTestIds(new Set());
+    setShowProfilesPanel(false);
+  };
+
+  // Handle logo upload
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBranding({ ...branding, schoolLogo: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Print/Export PDF functionality
+  const handlePrint = () => {
+    window.print();
+  };
+
   const addTest = () => {
     if (newTest.name && newTest.score) {
       const score = parseInt(newTest.score);
@@ -482,6 +613,105 @@ function BellCurveApp() {
           pointer-events: none;
           transition: opacity 0.2s ease;
         }
+
+        /* Print Styles for PDF Export */
+        @media print {
+          body {
+            background: white !important;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          .print-only {
+            display: block !important;
+          }
+
+          .chart-container {
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .presentation-header {
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+
+          /* Ensure colors are visible in print */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+
+          @page {
+            margin: 0.75in;
+            size: letter;
+          }
+        }
+
+        .print-only {
+          display: none;
+        }
+
+        .profile-card {
+          background: rgba(255, 255, 255, 0.06);
+          border-radius: 12px;
+          padding: 16px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .profile-card:hover {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.15);
+          transform: translateY(-2px);
+        }
+
+        .delete-profile-btn {
+          background: rgba(255, 107, 107, 0.2);
+          border: none;
+          border-radius: 6px;
+          color: #ff6b6b;
+          cursor: pointer;
+          padding: 6px 10px;
+          font-size: 12px;
+          font-weight: 600;
+          transition: all 0.2s ease;
+        }
+
+        .delete-profile-btn:hover {
+          background: rgba(255, 107, 107, 0.4);
+        }
+
+        .print-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 30px;
+          padding-bottom: 20px;
+          border-bottom: 3px solid #667eea;
+        }
+
+        .print-logo {
+          max-width: 150px;
+          max-height: 80px;
+          object-fit: contain;
+        }
+
+        .print-footer {
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 2px solid #eee;
+          text-align: center;
+          font-size: 12px;
+          color: #666;
+        }
       `}</style>
 
       {/* Header */}
@@ -519,21 +749,320 @@ function BellCurveApp() {
           </p>
         </div>
         
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button
-            className={`mode-btn ${mode === 'input' ? 'active' : 'inactive'}`}
+            className="mode-btn inactive no-print"
+            onClick={() => setShowBrandingPanel(true)}
+            title="Configure school branding"
+          >
+            🎨 Branding
+          </button>
+          <button
+            className="mode-btn inactive no-print"
+            onClick={() => setShowProfilesPanel(true)}
+            title="Manage student profiles"
+          >
+            📁 Profiles
+          </button>
+          <button
+            className={`mode-btn ${mode === 'input' ? 'active' : 'inactive'} no-print`}
             onClick={() => setMode('input')}
           >
             ✏️ Input Mode
           </button>
           <button
-            className={`mode-btn ${mode === 'presentation' ? 'active' : 'inactive'}`}
+            className={`mode-btn ${mode === 'presentation' ? 'active' : 'inactive'} no-print`}
             onClick={() => setMode('presentation')}
           >
             📊 Presentation
           </button>
+          {mode === 'presentation' && tests.length > 0 && (
+            <button
+              className="mode-btn inactive no-print"
+              onClick={handlePrint}
+              title="Print or export to PDF"
+            >
+              🖨️ Print/PDF
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Branding Configuration Panel */}
+      {showBrandingPanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '600px',
+            width: '100%',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          }}>
+            <h2 style={{
+              margin: '0 0 30px 0',
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#f8f9fa',
+            }}>
+              🎨 Custom Branding
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  School Name
+                </label>
+                <input
+                  type="text"
+                  value={branding.schoolName}
+                  onChange={(e) => setBranding({ ...branding, schoolName: e.target.value })}
+                  className="input-field"
+                  placeholder="Enter school name"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  School Logo
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  className="input-field"
+                  style={{ width: '100%' }}
+                />
+                {branding.schoolLogo && (
+                  <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                    <img
+                      src={branding.schoolLogo}
+                      alt="School Logo Preview"
+                      style={{
+                        maxWidth: '200px',
+                        maxHeight: '100px',
+                        objectFit: 'contain',
+                        border: '2px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '8px',
+                        padding: '10px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  Primary Color
+                </label>
+                <input
+                  type="color"
+                  value={branding.primaryColor}
+                  onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
+                  style={{
+                    width: '100%',
+                    height: '50px',
+                    border: '2px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  Report Footer Text
+                </label>
+                <textarea
+                  value={branding.footerText}
+                  onChange={(e) => setBranding({ ...branding, footerText: e.target.value })}
+                  className="input-field"
+                  placeholder="Optional footer text for printed reports"
+                  style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
+              <button
+                className="add-btn"
+                onClick={() => setShowBrandingPanel(false)}
+                style={{ flex: 1 }}
+              >
+                Save & Close
+              </button>
+              <button
+                className="control-btn"
+                onClick={() => setShowBrandingPanel(false)}
+                style={{ padding: '14px 28px' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profiles Management Panel */}
+      {showProfilesPanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '700px',
+            width: '100%',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          }}>
+            <h2 style={{
+              margin: '0 0 30px 0',
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#f8f9fa',
+            }}>
+              📁 Student Profiles
+            </h2>
+
+            <div style={{ marginBottom: '24px' }}>
+              <button
+                className="add-btn"
+                onClick={startNewProfile}
+                style={{ width: '100%' }}
+              >
+                ➕ Start New Profile
+              </button>
+            </div>
+
+            {savedProfiles.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '60px 20px',
+                color: 'rgba(255, 255, 255, 0.4)',
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
+                <p style={{ margin: 0, fontSize: '16px' }}>
+                  No saved profiles yet. Save your first student profile!
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {savedProfiles.map((profile) => (
+                  <div key={profile.id} className="profile-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div style={{ flex: 1 }} onClick={() => loadProfile(profile)}>
+                        <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '8px', color: '#f8f9fa' }}>
+                          {profile.studentName}
+                        </div>
+                        <div style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '4px' }}>
+                          Assessment: {profile.assessmentDate ? new Date(profile.assessmentDate).toLocaleDateString() : 'No date'}
+                        </div>
+                        <div style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '4px' }}>
+                          Tests: {profile.tests.length}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.4)' }}>
+                          Saved: {new Date(profile.savedAt).toLocaleDateString()} {new Date(profile.savedAt).toLocaleTimeString()}
+                        </div>
+                        {currentProfileId === profile.id && (
+                          <div style={{
+                            display: 'inline-block',
+                            marginTop: '8px',
+                            padding: '4px 10px',
+                            background: 'rgba(0, 184, 148, 0.2)',
+                            color: '#00b894',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                          }}>
+                            Currently Loaded
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        className="delete-profile-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteProfile(profile.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
+              <button
+                className="control-btn"
+                onClick={() => setShowProfilesPanel(false)}
+                style={{ flex: 1, padding: '14px 28px' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto' }}>
         {mode === 'input' ? (
@@ -559,7 +1088,7 @@ function BellCurveApp() {
                 }}>
                   📋 Student Information
                 </h3>
-                <div style={{ display: 'flex', gap: '16px' }}>
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
                   <input
                     type="text"
                     placeholder="Student Name"
@@ -576,6 +1105,29 @@ function BellCurveApp() {
                     style={{ width: '180px' }}
                   />
                 </div>
+                <button
+                  className="add-btn"
+                  onClick={saveCurrentProfile}
+                  disabled={!studentName}
+                  style={{ width: '100%' }}
+                  title="Save this student's profile and assessments"
+                >
+                  💾 Save Profile
+                </button>
+                {currentProfileId && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    background: 'rgba(0, 184, 148, 0.15)',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    color: '#00b894',
+                    textAlign: 'center',
+                    fontWeight: 600,
+                  }}>
+                    ✓ Profile saved
+                  </div>
+                )}
               </div>
 
               {/* Add Test */}
@@ -912,6 +1464,38 @@ function BellCurveApp() {
         ) : (
           /* PRESENTATION MODE */
           <div>
+            {/* Print-only header with branding */}
+            <div className="print-only print-header" style={{ display: 'none' }}>
+              <div>
+                {branding.schoolLogo && (
+                  <img
+                    src={branding.schoolLogo}
+                    alt="School Logo"
+                    className="print-logo"
+                  />
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                {branding.schoolName && (
+                  <h1 style={{
+                    margin: '0 0 8px 0',
+                    fontSize: '24px',
+                    fontWeight: 700,
+                    color: '#1a1a2e',
+                  }}>
+                    {branding.schoolName}
+                  </h1>
+                )}
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  color: '#666',
+                }}>
+                  Student Assessment Report
+                </p>
+              </div>
+            </div>
+
             <div className="presentation-header">
               {studentName && (
                 <h2 style={{
@@ -1322,6 +1906,51 @@ function BellCurveApp() {
               </div>
             )}
 
+            {/* Parent-Friendly Explanation (visible in print) */}
+            {tests.length > 0 && (
+              <div className="print-only" style={{
+                display: 'none',
+                background: '#f8f9fa',
+                borderRadius: '12px',
+                padding: '24px',
+                marginBottom: '24px',
+                border: '1px solid #ddd',
+              }}>
+                <h3 style={{
+                  margin: '0 0 16px 0',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#1a1a2e',
+                }}>
+                  Understanding Your Child's Assessment Results
+                </h3>
+                <p style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: '#333',
+                }}>
+                  This report shows your child's test scores plotted on a bell curve, which represents how scores typically distribute across a population. The bell curve helps visualize where your child's performance falls relative to expected norms.
+                </p>
+                <p style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: '#333',
+                }}>
+                  <strong>The Average Range (85-115):</strong> Most students score in this range (about 68% of all test-takers). Scores in this range indicate typical, age-appropriate performance.
+                </p>
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: '#333',
+                }}>
+                  <strong>Score Scale:</strong> Scores are standardized with an average of 100 and typically range from 40 to 160. Each 15-point increment represents one standard deviation from the average.
+                </p>
+              </div>
+            )}
+
             {/* Interpretation Guide */}
             {tests.length > 0 && (
               <div style={{
@@ -1376,6 +2005,23 @@ function BellCurveApp() {
                 </div>
               </div>
             )}
+
+            {/* Print-only footer with branding */}
+            <div className="print-only print-footer" style={{ display: 'none' }}>
+              {branding.footerText && (
+                <p style={{ margin: '0 0 10px 0' }}>
+                  {branding.footerText}
+                </p>
+              )}
+              <p style={{ margin: 0 }}>
+                Generated on {new Date().toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+                {branding.schoolName && ` • ${branding.schoolName}`}
+              </p>
+            </div>
           </div>
         )}
       </div>
