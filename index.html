@@ -69,6 +69,7 @@ function BellCurveApp() {
     schoolName: '',
     schoolLogo: '',
     primaryColor: '#667eea',
+    textColor: '#1a1a2e',
     footerText: '',
   });
   const [showBrandingPanel, setShowBrandingPanel] = React.useState(false);
@@ -854,6 +855,8 @@ function BellCurveApp() {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             letterSpacing: '-0.5px',
+            cursor: 'default',
+            userSelect: 'none',
           }}>
             Score Distribution Visualizer
           </h1>
@@ -1014,6 +1017,31 @@ function BellCurveApp() {
                   type="color"
                   value={branding.primaryColor}
                   onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
+                  style={{
+                    width: '100%',
+                    height: '50px',
+                    border: '2px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  Text Color (School Name & Footer)
+                </label>
+                <input
+                  type="color"
+                  value={branding.textColor}
+                  onChange={(e) => setBranding({ ...branding, textColor: e.target.value })}
                   style={{
                     width: '100%',
                     height: '50px',
@@ -1615,7 +1643,7 @@ function BellCurveApp() {
                     margin: '0 0 8px 0',
                     fontSize: '24px',
                     fontWeight: 700,
-                    color: '#1a1a2e',
+                    color: branding.textColor,
                   }}>
                     {branding.schoolName}
                   </h1>
@@ -2264,11 +2292,11 @@ function BellCurveApp() {
             {/* Print-only footer with branding */}
             <div className="print-only print-footer" style={{ display: 'none' }}>
               {branding.footerText && (
-                <p style={{ margin: '0 0 10px 0' }}>
+                <p style={{ margin: '0 0 10px 0', color: branding.textColor }}>
                   {branding.footerText}
                 </p>
               )}
-              <p style={{ margin: 0 }}>
+              <p style={{ margin: 0, color: branding.textColor }}>
                 Generated on {new Date().toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
