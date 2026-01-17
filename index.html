@@ -11,13 +11,7 @@
         body {
             margin: 0;
             padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-                sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
         }
-
         #root {
             min-height: 100vh;
         }
@@ -25,10 +19,2040 @@
 </head>
 <body>
     <div id="root"></div>
-
-    <script type="text/babel" src="bellcurve1"></script>
-
     <script type="text/babel">
+
+
+const PRESET_COLORS = [
+  { name: 'Coral', value: '#FF6B6B', textColor: '#ffffff' },
+  { name: 'Ocean', value: '#4ECDC4', textColor: '#1a1a2e' },
+  { name: 'Sunset', value: '#FFE66D', textColor: '#1a1a2e' },
+  { name: 'Lavender', value: '#9B7EDE', textColor: '#ffffff' },
+  { name: 'Mint', value: '#95E1D3', textColor: '#1a1a2e' },
+  { name: 'Peach', value: '#FFEAA7', textColor: '#1a1a2e' },
+  { name: 'Sky', value: '#74B9FF', textColor: '#1a1a2e' },
+  { name: 'Rose', value: '#FD79A8', textColor: '#ffffff' },
+  { name: 'Lime', value: '#00B894', textColor: '#ffffff' },
+  { name: 'Tangerine', value: '#E17055', textColor: '#ffffff' },
+];
+
+const SCORE_LABELS = [
+  { score: 55, label: 'Very Low' },
+  { score: 70, label: 'Low' },
+  { score: 85, label: 'Low Average' },
+  { score: 100, label: 'Average' },
+  { score: 115, label: 'High Average' },
+  { score: 130, label: 'Superior' },
+  { score: 145, label: 'Very Superior' },
+];
+
+// Helper function to determine if a color is light or dark
+const getContrastTextColor = (hexColor) => {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#1a1a2e' : '#ffffff';
+};
+
+function BellCurveApp() {
+  const [mode, setMode] = React.useState('input');
+  const [tests, setTests] = React.useState([]);
+  const [newTest, setNewTest] = React.useState({ name: '', score: '', color: PRESET_COLORS[0].value });
+  const [studentName, setStudentName] = React.useState('');
+  const [assessmentDate, setAssessmentDate] = React.useState('');
+  const [visibleTestIds, setVisibleTestIds] = React.useState(new Set());
+  const [hoveredTestId, setHoveredTestId] = React.useState(null);
+
+  // Branding state
+  const [branding, setBranding] = React.useState({
+    schoolName: '',
+    schoolLogo: '',
+    primaryColor: '#667eea',
+    footerText: '',
+  });
+  const [showBrandingPanel, setShowBrandingPanel] = React.useState(false);
+
+  // Student profiles state
+  const [savedProfiles, setSavedProfiles] = React.useState([]);
+  const [currentProfileId, setCurrentProfileId] = React.useState(null);
+  const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
+
+  // Load branding and profiles from localStorage on mount
+  React.useEffect(() => {
+    try {
+      const savedBranding = localStorage.getItem('bellcurve_branding');
+      if (savedBranding) {
+        setBranding(JSON.parse(savedBranding));
+      }
+
+      const profiles = localStorage.getItem('bellcurve_profiles');
+      if (profiles) {
+        setSavedProfiles(JSON.parse(profiles));
+      }
+    } catch (error) {
+      console.error('Error loading data from localStorage:', error);
+    }
+  }, []);
+
+  // Save branding to localStorage whenever it changes
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('bellcurve_branding', JSON.stringify(branding));
+    } catch (error) {
+      console.error('Error saving branding:', error);
+    }
+  }, [branding]);
+
+  // Save current profile
+  const saveCurrentProfile = () => {
+    if (!studentName) {
+      alert('Please enter a student name before saving');
+      return;
+    }
+
+    const profile = {
+      id: currentProfileId || Date.now(),
+      studentName,
+      assessmentDate,
+      tests: tests.map(t => ({ ...t })),
+      savedAt: new Date().toISOString(),
+    };
+
+    const updatedProfiles = currentProfileId
+      ? savedProfiles.map(p => p.id === currentProfileId ? profile : p)
+      : [...savedProfiles, profile];
+
+    setSavedProfiles(updatedProfiles);
+    setCurrentProfileId(profile.id);
+
+    try {
+      localStorage.setItem('bellcurve_profiles', JSON.stringify(updatedProfiles));
+      alert(`Profile saved successfully for ${studentName}!`);
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      alert('Error saving profile. Please try again.');
+    }
+  };
+
+  // Load a profile
+  const loadProfile = (profile) => {
+    setStudentName(profile.studentName);
+    setAssessmentDate(profile.assessmentDate);
+    setTests(profile.tests.map(t => ({ ...t })));
+    setCurrentProfileId(profile.id);
+    setVisibleTestIds(new Set(profile.tests.map(t => t.id)));
+    setShowProfilesPanel(false);
+    setMode('input');
+  };
+
+  // Delete a profile
+  const deleteProfile = (profileId) => {
+    if (confirm('Are you sure you want to delete this profile?')) {
+      const updatedProfiles = savedProfiles.filter(p => p.id !== profileId);
+      setSavedProfiles(updatedProfiles);
+
+      try {
+        localStorage.setItem('bellcurve_profiles', JSON.stringify(updatedProfiles));
+        if (currentProfileId === profileId) {
+          setCurrentProfileId(null);
+        }
+      } catch (error) {
+        console.error('Error deleting profile:', error);
+      }
+    }
+  };
+
+  // Start a new profile
+  const startNewProfile = () => {
+    if (tests.length > 0 || studentName) {
+      if (!confirm('Start a new profile? Any unsaved changes will be lost.')) {
+        return;
+      }
+    }
+    setStudentName('');
+    setAssessmentDate('');
+    setTests([]);
+    setCurrentProfileId(null);
+    setVisibleTestIds(new Set());
+    setShowProfilesPanel(false);
+  };
+
+  // Handle logo upload
+  const handleLogoUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setBranding({ ...branding, schoolLogo: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  // Print/Export PDF functionality
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const addTest = () => {
+    if (newTest.name && newTest.score) {
+      const score = parseInt(newTest.score);
+      if (score >= 40 && score <= 160) {
+        const newId = Date.now();
+        setTests([...tests, { ...newTest, score, id: newId }]);
+        setVisibleTestIds(prev => new Set([...prev, newId]));
+        const nextColorIndex = (tests.length + 1) % PRESET_COLORS.length;
+        setNewTest({ name: '', score: '', color: PRESET_COLORS[nextColorIndex].value });
+      }
+    }
+  };
+
+  const removeTest = (id) => {
+    setTests(tests.filter(t => t.id !== id));
+    setVisibleTestIds(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(id);
+      return newSet;
+    });
+  };
+
+  const toggleTestVisibility = (id) => {
+    setVisibleTestIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const showAllTests = () => {
+    setVisibleTestIds(new Set(tests.map(t => t.id)));
+  };
+
+  const hideAllTests = () => {
+    setVisibleTestIds(new Set());
+  };
+
+  // Chart dimensions with proper padding for the curve peak
+  const chartTopPadding = 80;
+  const chartBottomY = 300;
+
+  // Generate bell curve path
+  const generateBellCurve = () => {
+    const points = [];
+    const width = 800;
+    const mean = 100;
+    const stdDev = 15;
+    
+    for (let x = 0; x <= width; x += 2) {
+      const score = 40 + (x / width) * 120;
+      const z = (score - mean) / stdDev;
+      const y = Math.exp(-0.5 * z * z) / (stdDev * Math.sqrt(2 * Math.PI));
+      const scaledY = chartBottomY - (y * stdDev * (chartBottomY - chartTopPadding) * 2.5);
+      points.push(`${x},${scaledY}`);
+    }
+    
+    return `M ${points.join(' L ')} L 800,${chartBottomY} L 0,${chartBottomY} Z`;
+  };
+
+  const getScoreX = (score) => {
+    return ((score - 40) / 120) * 800;
+  };
+
+  const getScoreY = (score) => {
+    const mean = 100;
+    const stdDev = 15;
+    const z = (score - mean) / stdDev;
+    const y = Math.exp(-0.5 * z * z) / (stdDev * Math.sqrt(2 * Math.PI));
+    return chartBottomY - (y * stdDev * (chartBottomY - chartTopPadding) * 2.5);
+  };
+
+  const bellPath = React.useMemo(() => generateBellCurve(), []);
+
+  // Generate average range area (85-115)
+  const generateAverageArea = () => {
+    const points = [];
+    const mean = 100;
+    const stdDev = 15;
+    
+    const startX = getScoreX(85);
+    const endX = getScoreX(115);
+    
+    for (let x = startX; x <= endX; x += 2) {
+      const score = 40 + (x / 800) * 120;
+      const z = (score - mean) / stdDev;
+      const y = Math.exp(-0.5 * z * z) / (stdDev * Math.sqrt(2 * Math.PI));
+      const scaledY = chartBottomY - (y * stdDev * (chartBottomY - chartTopPadding) * 2.5);
+      points.push(`${x},${scaledY}`);
+    }
+    
+    return `M ${startX},${chartBottomY} L ${points.join(' L ')} L ${endX},${chartBottomY} Z`;
+  };
+
+  const averageAreaPath = React.useMemo(() => generateAverageArea(), []);
+
+  const getScoreDescription = (score) => {
+    if (score < 70) return 'Very Low';
+    if (score < 85) return 'Low';
+    if (score < 115) return 'Average';
+    if (score < 130) return 'High';
+    return 'Very High';
+  };
+
+  // Get visible tests based on selection
+  const getVisibleTests = () => {
+    return tests.filter(t => visibleTestIds.has(t.id));
+  };
+
+  // Calculate stacked positions for overlapping scores
+  const getStackedPositions = (visibleTests) => {
+    const markerRadius = 18;
+    const stackGap = 8;
+    const proximityThreshold = 5; // scores within 5 points are considered "close"
+    
+    // Sort by score
+    const sorted = [...visibleTests].sort((a, b) => a.score - b.score);
+    
+    // Group tests by proximity
+    const groups = [];
+    let currentGroup = [];
+    
+    sorted.forEach((test, index) => {
+      if (currentGroup.length === 0) {
+        currentGroup.push(test);
+      } else {
+        const lastTest = currentGroup[currentGroup.length - 1];
+        if (Math.abs(test.score - lastTest.score) <= proximityThreshold) {
+          currentGroup.push(test);
+        } else {
+          groups.push([...currentGroup]);
+          currentGroup = [test];
+        }
+      }
+    });
+    if (currentGroup.length > 0) {
+      groups.push(currentGroup);
+    }
+    
+    // Calculate positions with stacking
+    const positions = [];
+    
+    groups.forEach(group => {
+      // Find the average score position for the group
+      const avgScore = group.reduce((sum, t) => sum + t.score, 0) / group.length;
+      const baseX = getScoreX(avgScore);
+      const baseY = getScoreY(avgScore);
+      
+      group.forEach((test, stackIndex) => {
+        const x = getScoreX(test.score);
+        const y = baseY - (stackIndex * (markerRadius * 2 + stackGap));
+        positions.push({
+          test,
+          x,
+          y,
+          baseY, // For the vertical line
+          isStacked: group.length > 1,
+          stackIndex,
+        });
+      });
+    });
+    
+    return positions;
+  };
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+      fontFamily: "'Nunito', 'Segoe UI', sans-serif",
+      color: '#f8f9fa',
+      padding: '0',
+    }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
+        
+        * {
+          box-sizing: border-box;
+        }
+        
+        .mode-btn {
+          padding: 14px 32px;
+          border: none;
+          border-radius: 12px;
+          font-size: 15px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          font-family: 'Nunito', sans-serif;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        
+        .mode-btn.active {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+          box-shadow: 0 8px 30px rgba(102, 126, 234, 0.4);
+          transform: translateY(-2px);
+        }
+        
+        .mode-btn.inactive {
+          background: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.6);
+          backdrop-filter: blur(10px);
+        }
+        
+        .mode-btn.inactive:hover {
+          background: rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .input-field {
+          padding: 14px 18px;
+          border: 2px solid rgba(255, 255, 255, 0.1);
+          border-radius: 12px;
+          font-size: 15px;
+          background: rgba(255, 255, 255, 0.05);
+          color: #f8f9fa;
+          font-family: 'Nunito', sans-serif;
+          transition: all 0.3s ease;
+          backdrop-filter: blur(10px);
+        }
+        
+        .input-field:focus {
+          outline: none;
+          border-color: #667eea;
+          background: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 0 20px rgba(102, 126, 234, 0.2);
+        }
+        
+        .input-field::placeholder {
+          color: rgba(255, 255, 255, 0.4);
+        }
+        
+        .add-btn {
+          padding: 14px 28px;
+          background: linear-gradient(135deg, #00b894 0%, #00cec9 100%);
+          border: none;
+          border-radius: 12px;
+          color: white;
+          font-size: 15px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          font-family: 'Nunito', sans-serif;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        
+        .add-btn:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 10px 30px rgba(0, 184, 148, 0.4);
+        }
+        
+        .add-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none;
+        }
+        
+        .test-card {
+          background: rgba(255, 255, 255, 0.06);
+          border-radius: 16px;
+          padding: 18px 22px;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          transition: all 0.3s ease;
+          animation: slideIn 0.4s ease-out;
+        }
+        
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        
+        .test-card:hover {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.15);
+        }
+        
+        .remove-btn {
+          background: rgba(255, 107, 107, 0.2);
+          border: none;
+          border-radius: 8px;
+          color: #ff6b6b;
+          cursor: pointer;
+          padding: 8px 12px;
+          font-size: 13px;
+          font-weight: 600;
+          transition: all 0.3s ease;
+          font-family: 'Nunito', sans-serif;
+        }
+        
+        .remove-btn:hover {
+          background: rgba(255, 107, 107, 0.4);
+          transform: scale(1.05);
+        }
+        
+        .color-picker {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+        }
+        
+        .color-swatch {
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: 3px solid transparent;
+        }
+        
+        .color-swatch:hover {
+          transform: scale(1.15);
+        }
+        
+        .color-swatch.selected {
+          border-color: white;
+          box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+        
+        .legend-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 18px;
+          background: rgba(255, 255, 255, 0.06);
+          border-radius: 12px;
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .score-marker {
+          transition: all 0.2s ease;
+          cursor: pointer;
+        }
+        
+        .presentation-header {
+          text-align: center;
+          margin-bottom: 40px;
+        }
+        
+        .chart-container {
+          background: rgba(255, 255, 255, 0.03);
+          border-radius: 24px;
+          padding: 40px;
+          backdrop-filter: blur(20px);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .info-panel {
+          background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+          border-radius: 16px;
+          padding: 24px;
+          border: 1px solid rgba(102, 126, 234, 0.3);
+          margin-top: 20px;
+        }
+        
+        .checkbox-card {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 16px 20px;
+          background: rgba(255, 255, 255, 0.04);
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: 2px solid transparent;
+          user-select: none;
+        }
+        
+        .checkbox-card:hover {
+          background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .checkbox-card.checked {
+          border-color: currentColor;
+          background: rgba(255, 255, 255, 0.06);
+        }
+        
+        .custom-checkbox {
+          width: 24px;
+          height: 24px;
+          border-radius: 6px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s ease;
+          flex-shrink: 0;
+        }
+        
+        .custom-checkbox.checked {
+          border-color: currentColor;
+          background: currentColor;
+        }
+        
+        .checkmark {
+          color: #1a1a2e;
+          font-size: 14px;
+          font-weight: 800;
+        }
+        
+        .control-btn {
+          padding: 10px 18px;
+          border: none;
+          border-radius: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-family: 'Nunito', sans-serif;
+          background: rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.8);
+        }
+        
+        .control-btn:hover {
+          background: rgba(255, 255, 255, 0.2);
+          color: white;
+        }
+        
+        .tooltip {
+          pointer-events: none;
+          transition: opacity 0.2s ease;
+        }
+
+        /* Print Styles for PDF Export */
+        @media print {
+          body {
+            background: white !important;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
+          .print-only {
+            display: block !important;
+          }
+
+          .chart-container {
+            box-shadow: none !important;
+            border: 1px solid #ddd !important;
+            break-inside: avoid;
+            page-break-inside: avoid;
+          }
+
+          .presentation-header {
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+
+          /* Ensure colors are visible in print */
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            color-adjust: exact !important;
+          }
+
+          @page {
+            margin: 0.75in;
+            size: letter;
+          }
+        }
+
+        .print-only {
+          display: none;
+        }
+
+        .profile-card {
+          background: rgba(255, 255, 255, 0.06);
+          border-radius: 12px;
+          padding: 16px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .profile-card:hover {
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.15);
+          transform: translateY(-2px);
+        }
+
+        .delete-profile-btn {
+          background: rgba(255, 107, 107, 0.2);
+          border: none;
+          border-radius: 6px;
+          color: #ff6b6b;
+          cursor: pointer;
+          padding: 6px 10px;
+          font-size: 12px;
+          font-weight: 600;
+          transition: all 0.2s ease;
+        }
+
+        .delete-profile-btn:hover {
+          background: rgba(255, 107, 107, 0.4);
+        }
+
+        .print-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 30px;
+          padding-bottom: 20px;
+          border-bottom: 3px solid #667eea;
+        }
+
+        .print-logo {
+          max-width: 150px;
+          max-height: 80px;
+          object-fit: contain;
+        }
+
+        .print-footer {
+          margin-top: 40px;
+          padding-top: 20px;
+          border-top: 2px solid #eee;
+          text-align: center;
+          font-size: 12px;
+          color: #666;
+        }
+      `}</style>
+
+      {/* Header */}
+      <div style={{
+        padding: '30px 40px',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        background: 'rgba(0, 0, 0, 0.2)',
+        backdropFilter: 'blur(20px)',
+      }}>
+        <div>
+          <h1 style={{
+            fontFamily: "'Playfair Display', serif",
+            fontSize: '32px',
+            fontWeight: 700,
+            margin: 0,
+            background: 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            letterSpacing: '-0.5px',
+          }}>
+            Score Distribution Visualizer
+          </h1>
+          <p style={{
+            margin: '8px 0 0 0',
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '14px',
+            fontWeight: 600,
+            letterSpacing: '2px',
+            textTransform: 'uppercase',
+          }}>
+            Bell Curve Analysis Tool
+          </p>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <button
+            className="mode-btn inactive no-print"
+            onClick={() => setShowBrandingPanel(true)}
+            title="Configure school branding"
+          >
+            🎨 Branding
+          </button>
+          <button
+            className="mode-btn inactive no-print"
+            onClick={() => setShowProfilesPanel(true)}
+            title="Manage student profiles"
+          >
+            📁 Profiles
+          </button>
+          <button
+            className={`mode-btn ${mode === 'input' ? 'active' : 'inactive'} no-print`}
+            onClick={() => setMode('input')}
+          >
+            ✏️ Input Mode
+          </button>
+          <button
+            className={`mode-btn ${mode === 'presentation' ? 'active' : 'inactive'} no-print`}
+            onClick={() => setMode('presentation')}
+          >
+            📊 Presentation
+          </button>
+          {mode === 'presentation' && tests.length > 0 && (
+            <button
+              className="mode-btn inactive no-print"
+              onClick={handlePrint}
+              title="Print or export to PDF"
+            >
+              🖨️ Print/PDF
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Branding Configuration Panel */}
+      {showBrandingPanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '600px',
+            width: '100%',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          }}>
+            <h2 style={{
+              margin: '0 0 30px 0',
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#f8f9fa',
+            }}>
+              🎨 Custom Branding
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  School Name
+                </label>
+                <input
+                  type="text"
+                  value={branding.schoolName}
+                  onChange={(e) => setBranding({ ...branding, schoolName: e.target.value })}
+                  className="input-field"
+                  placeholder="Enter school name"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  School Logo
+                </label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleLogoUpload}
+                  className="input-field"
+                  style={{ width: '100%' }}
+                />
+                {branding.schoolLogo && (
+                  <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                    <img
+                      src={branding.schoolLogo}
+                      alt="School Logo Preview"
+                      style={{
+                        maxWidth: '200px',
+                        maxHeight: '100px',
+                        objectFit: 'contain',
+                        border: '2px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '8px',
+                        padding: '10px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  Primary Color
+                </label>
+                <input
+                  type="color"
+                  value={branding.primaryColor}
+                  onChange={(e) => setBranding({ ...branding, primaryColor: e.target.value })}
+                  style={{
+                    width: '100%',
+                    height: '50px',
+                    border: '2px solid rgba(255, 255, 255, 0.1)',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    background: 'rgba(255, 255, 255, 0.05)',
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'rgba(255, 255, 255, 0.8)',
+                }}>
+                  Report Footer Text
+                </label>
+                <textarea
+                  value={branding.footerText}
+                  onChange={(e) => setBranding({ ...branding, footerText: e.target.value })}
+                  className="input-field"
+                  placeholder="Optional footer text for printed reports"
+                  style={{ width: '100%', minHeight: '80px', resize: 'vertical' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
+              <button
+                className="add-btn"
+                onClick={() => setShowBrandingPanel(false)}
+                style={{ flex: 1 }}
+              >
+                Save & Close
+              </button>
+              <button
+                className="control-btn"
+                onClick={() => setShowBrandingPanel(false)}
+                style={{ padding: '14px 28px' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Profiles Management Panel */}
+      {showProfilesPanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '700px',
+            width: '100%',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          }}>
+            <h2 style={{
+              margin: '0 0 30px 0',
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#f8f9fa',
+            }}>
+              📁 Student Profiles
+            </h2>
+
+            <div style={{ marginBottom: '24px' }}>
+              <button
+                className="add-btn"
+                onClick={startNewProfile}
+                style={{ width: '100%' }}
+              >
+                ➕ Start New Profile
+              </button>
+            </div>
+
+            {savedProfiles.length === 0 ? (
+              <div style={{
+                textAlign: 'center',
+                padding: '60px 20px',
+                color: 'rgba(255, 255, 255, 0.4)',
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
+                <p style={{ margin: 0, fontSize: '16px' }}>
+                  No saved profiles yet. Save your first student profile!
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {savedProfiles.map((profile) => (
+                  <div key={profile.id} className="profile-card">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                      <div style={{ flex: 1 }} onClick={() => loadProfile(profile)}>
+                        <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '8px', color: '#f8f9fa' }}>
+                          {profile.studentName}
+                        </div>
+                        <div style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '4px' }}>
+                          Assessment: {profile.assessmentDate ? new Date(profile.assessmentDate).toLocaleDateString() : 'No date'}
+                        </div>
+                        <div style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '4px' }}>
+                          Tests: {profile.tests.length}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.4)' }}>
+                          Saved: {new Date(profile.savedAt).toLocaleDateString()} {new Date(profile.savedAt).toLocaleTimeString()}
+                        </div>
+                        {currentProfileId === profile.id && (
+                          <div style={{
+                            display: 'inline-block',
+                            marginTop: '8px',
+                            padding: '4px 10px',
+                            background: 'rgba(0, 184, 148, 0.2)',
+                            color: '#00b894',
+                            borderRadius: '6px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.5px',
+                          }}>
+                            Currently Loaded
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        className="delete-profile-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteProfile(profile.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
+              <button
+                className="control-btn"
+                onClick={() => setShowProfilesPanel(false)}
+                style={{ flex: 1, padding: '14px 28px' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto' }}>
+        {mode === 'input' ? (
+          /* INPUT MODE */
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+            {/* Left Panel - Form */}
+            <div>
+              {/* Student Info */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '20px',
+                padding: '28px',
+                marginBottom: '28px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
+                <h3 style={{
+                  margin: '0 0 20px 0',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#c8d6e5',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                }}>
+                  📋 Student Information
+                </h3>
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                  <input
+                    type="text"
+                    placeholder="Student Name"
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    className="input-field"
+                    style={{ flex: 1 }}
+                  />
+                  <input
+                    type="date"
+                    value={assessmentDate}
+                    onChange={(e) => setAssessmentDate(e.target.value)}
+                    className="input-field"
+                    style={{ width: '180px' }}
+                  />
+                </div>
+                <button
+                  className="add-btn"
+                  onClick={saveCurrentProfile}
+                  disabled={!studentName}
+                  style={{ width: '100%' }}
+                  title="Save this student's profile and assessments"
+                >
+                  💾 Save Profile
+                </button>
+                {currentProfileId && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    background: 'rgba(0, 184, 148, 0.15)',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    color: '#00b894',
+                    textAlign: 'center',
+                    fontWeight: 600,
+                  }}>
+                    ✓ Profile saved
+                  </div>
+                )}
+              </div>
+
+              {/* Add Test */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '20px',
+                padding: '28px',
+                marginBottom: '28px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
+                <h3 style={{
+                  margin: '0 0 20px 0',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#c8d6e5',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                }}>
+                  ➕ Add Test Score
+                </h3>
+                
+                <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
+                  <input
+                    type="text"
+                    placeholder="Test/Section Name"
+                    value={newTest.name}
+                    onChange={(e) => setNewTest({ ...newTest, name: e.target.value })}
+                    className="input-field"
+                    style={{ flex: 2 }}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Score (40-160)"
+                    value={newTest.score}
+                    onChange={(e) => setNewTest({ ...newTest, score: e.target.value })}
+                    className="input-field"
+                    style={{ flex: 1 }}
+                    min="40"
+                    max="160"
+                  />
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '12px',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    color: 'rgba(255, 255, 255, 0.6)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                  }}>
+                    Select Color
+                  </label>
+                  <div className="color-picker">
+                    {PRESET_COLORS.map((color) => (
+                      <div
+                        key={color.value}
+                        className={`color-swatch ${newTest.color === color.value ? 'selected' : ''}`}
+                        style={{ backgroundColor: color.value }}
+                        onClick={() => setNewTest({ ...newTest, color: color.value })}
+                        title={color.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  className="add-btn"
+                  onClick={addTest}
+                  disabled={!newTest.name || !newTest.score}
+                  style={{ width: '100%' }}
+                >
+                  Add to Chart
+                </button>
+              </div>
+
+              {/* Test List */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '20px',
+                padding: '28px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
+                <h3 style={{
+                  margin: '0 0 20px 0',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#c8d6e5',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                }}>
+                  📝 Added Tests ({tests.length})
+                </h3>
+                
+                {tests.length === 0 ? (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '40px',
+                    color: 'rgba(255, 255, 255, 0.4)',
+                    fontSize: '15px',
+                  }}>
+                    No tests added yet. Add your first test above!
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {tests.map((test) => (
+                      <div key={test.id} className="test-card">
+                        <div
+                          style={{
+                            width: '14px',
+                            height: '40px',
+                            borderRadius: '7px',
+                            backgroundColor: test.color,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px' }}>
+                            {test.name}
+                          </div>
+                          <div style={{
+                            fontSize: '13px',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                          }}>
+                            Score: {test.score} • {getScoreDescription(test.score)}
+                          </div>
+                        </div>
+                        <button
+                          className="remove-btn"
+                          onClick={() => removeTest(test.id)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right Panel - Preview */}
+            <div>
+              <div className="chart-container">
+                <h3 style={{
+                  margin: '0 0 24px 0',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#c8d6e5',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                }}>
+                  📈 Live Preview
+                </h3>
+                
+                <svg viewBox="0 0 800 380" style={{ width: '100%', height: 'auto' }}>
+                  {/* Grid lines */}
+                  {[55, 70, 85, 100, 115, 130, 145].map((score) => (
+                    <line
+                      key={score}
+                      x1={getScoreX(score)}
+                      y1={chartTopPadding}
+                      x2={getScoreX(score)}
+                      y2={chartBottomY}
+                      stroke="rgba(255, 255, 255, 0.1)"
+                      strokeDasharray="4,4"
+                    />
+                  ))}
+
+                  {/* Average range highlight (85-115) */}
+                  <path
+                    d={averageAreaPath}
+                    fill="rgba(0, 0, 0, 0.25)"
+                  />
+
+                  {/* Bell curve */}
+                  <path
+                    d={bellPath}
+                    fill="rgba(102, 126, 234, 0.15)"
+                    stroke="url(#curveGradient)"
+                    strokeWidth="3"
+                  />
+
+                  {/* Gradient definition */}
+                  <defs>
+                    <linearGradient id="curveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#667eea" />
+                      <stop offset="50%" stopColor="#764ba2" />
+                      <stop offset="100%" stopColor="#667eea" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Score labels */}
+                  {SCORE_LABELS.map(({ score, label }) => (
+                    <g key={score}>
+                      <text
+                        x={getScoreX(score)}
+                        y="330"
+                        textAnchor="middle"
+                        fill="rgba(255, 255, 255, 0.7)"
+                        fontSize="12"
+                        fontWeight="600"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {score}
+                      </text>
+                      <text
+                        x={getScoreX(score)}
+                        y="350"
+                        textAnchor="middle"
+                        fill="rgba(255, 255, 255, 0.4)"
+                        fontSize="9"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {label}
+                      </text>
+                    </g>
+                  ))}
+
+                  {/* Average range label */}
+                  <text
+                    x={getScoreX(100)}
+                    y="370"
+                    textAnchor="middle"
+                    fill="rgba(255, 255, 255, 0.5)"
+                    fontSize="10"
+                    fontFamily="Nunito, sans-serif"
+                    fontWeight="600"
+                  >
+                    ← Average Range (85-115) →
+                  </text>
+
+                  {/* Score markers with stacking */}
+                  {getStackedPositions(tests).map(({ test, x, y, baseY }) => (
+                    <g key={test.id} className="score-marker">
+                      {/* Vertical line to base of curve */}
+                      <line
+                        x1={x}
+                        y1={baseY}
+                        x2={x}
+                        y2={chartBottomY}
+                        stroke={test.color}
+                        strokeWidth="2"
+                        strokeDasharray="4,4"
+                        opacity="0.6"
+                      />
+                      {/* Connector line if stacked */}
+                      {y < baseY && (
+                        <line
+                          x1={x}
+                          y1={y + 12}
+                          x2={x}
+                          y2={baseY}
+                          stroke={test.color}
+                          strokeWidth="2"
+                          opacity="0.4"
+                        />
+                      )}
+                      {/* Marker dot */}
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r="12"
+                        fill={test.color}
+                        stroke="white"
+                        strokeWidth="3"
+                      />
+                      {/* Score label on marker */}
+                      <text
+                        x={x}
+                        y={y + 4}
+                        textAnchor="middle"
+                        fill={getContrastTextColor(test.color)}
+                        fontSize="9"
+                        fontWeight="700"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {test.score}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+
+                {/* Legend */}
+                {tests.length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                    marginTop: '24px',
+                  }}>
+                    {tests.map((test) => (
+                      <div key={test.id} className="legend-item">
+                        <div
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '50%',
+                            backgroundColor: test.color,
+                          }}
+                        />
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                          {test.name}: {test.score}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Info Panel */}
+              <div className="info-panel">
+                <h4 style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '14px',
+                  fontWeight: 700,
+                  color: '#c8d6e5',
+                }}>
+                  ℹ️ Understanding the Bell Curve
+                </h4>
+                <p style={{
+                  margin: 0,
+                  fontSize: '13px',
+                  lineHeight: '1.7',
+                  color: 'rgba(255, 255, 255, 0.7)',
+                }}>
+                  The <strong>shaded area</strong> represents the average range (85-115), where most scores fall.
+                  Scores are measured on a standard scale where 100 is the mean average and each 15 points
+                  represents one standard deviation from the mean.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* PRESENTATION MODE */
+          <div>
+            {/* Print-only header with branding */}
+            <div className="print-only print-header" style={{ display: 'none' }}>
+              <div>
+                {branding.schoolLogo && (
+                  <img
+                    src={branding.schoolLogo}
+                    alt="School Logo"
+                    className="print-logo"
+                  />
+                )}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                {branding.schoolName && (
+                  <h1 style={{
+                    margin: '0 0 8px 0',
+                    fontSize: '24px',
+                    fontWeight: 700,
+                    color: '#1a1a2e',
+                  }}>
+                    {branding.schoolName}
+                  </h1>
+                )}
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  color: '#666',
+                }}>
+                  Student Assessment Report
+                </p>
+              </div>
+            </div>
+
+            <div className="presentation-header">
+              {studentName && (
+                <h2 style={{
+                  fontFamily: "'Playfair Display', serif",
+                  fontSize: '42px',
+                  fontWeight: 700,
+                  margin: '0 0 10px 0',
+                  background: 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}>
+                  {studentName}'s Score Profile
+                </h2>
+              )}
+              {assessmentDate && (
+                <p style={{
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  fontSize: '16px',
+                  margin: 0,
+                }}>
+                  Assessment Date: {new Date(assessmentDate).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  })}
+                </p>
+              )}
+            </div>
+
+            <div className="chart-container" style={{ marginBottom: '32px' }}>
+              {/* Hover instruction */}
+              <p style={{
+                margin: '0 0 16px 0',
+                fontSize: '13px',
+                color: 'rgba(255, 255, 255, 0.5)',
+                textAlign: 'center',
+              }}>
+                💡 Hover over any score marker to see the test name
+              </p>
+              
+              <svg viewBox="0 0 800 420" style={{ width: '100%', height: 'auto' }}>
+                {/* Grid lines */}
+                {[55, 70, 85, 100, 115, 130, 145].map((score) => (
+                  <line
+                    key={score}
+                    x1={getScoreX(score)}
+                    y1={chartTopPadding}
+                    x2={getScoreX(score)}
+                    y2={chartBottomY}
+                    stroke="rgba(255, 255, 255, 0.1)"
+                    strokeDasharray="4,4"
+                  />
+                ))}
+
+                {/* Average range highlight (85-115) */}
+                <path
+                  d={averageAreaPath}
+                  fill="rgba(0, 0, 0, 0.25)"
+                />
+
+                {/* Bell curve */}
+                <path
+                  d={bellPath}
+                  fill="rgba(102, 126, 234, 0.15)"
+                  stroke="url(#curveGradientPres)"
+                  strokeWidth="3"
+                />
+
+                {/* Gradient definition */}
+                <defs>
+                  <linearGradient id="curveGradientPres" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#667eea" />
+                    <stop offset="50%" stopColor="#764ba2" />
+                    <stop offset="100%" stopColor="#667eea" />
+                  </linearGradient>
+                  <filter id="glow">
+                    <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                    <feMerge>
+                      <feMergeNode in="coloredBlur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                  <filter id="tooltipShadow">
+                    <feDropShadow dx="0" dy="2" stdDeviation="4" floodOpacity="0.5"/>
+                  </filter>
+                </defs>
+
+                {/* Score labels on x-axis */}
+                {SCORE_LABELS.map(({ score, label }) => (
+                  <g key={score}>
+                    <text
+                      x={getScoreX(score)}
+                      y="330"
+                      textAnchor="middle"
+                      fill="rgba(255, 255, 255, 0.8)"
+                      fontSize="14"
+                      fontWeight="700"
+                      fontFamily="Nunito, sans-serif"
+                    >
+                      {score}
+                    </text>
+                    <text
+                      x={getScoreX(score)}
+                      y="350"
+                      textAnchor="middle"
+                      fill="rgba(255, 255, 255, 0.5)"
+                      fontSize="11"
+                      fontFamily="Nunito, sans-serif"
+                    >
+                      {label}
+                    </text>
+                  </g>
+                ))}
+
+                {/* Average range indicator */}
+                <text
+                  x={getScoreX(100)}
+                  y="375"
+                  textAnchor="middle"
+                  fill="rgba(255, 255, 255, 0.6)"
+                  fontSize="12"
+                  fontFamily="Nunito, sans-serif"
+                  fontWeight="600"
+                >
+                  ← Average Range (85-115) →
+                </text>
+
+                {/* Score markers with stacking and hover */}
+                {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
+                  const isHovered = hoveredTestId === test.id;
+                  const isHidden = hoveredTestId !== null && !isHovered;
+                  const textColor = getContrastTextColor(test.color);
+                  
+                  return (
+                    <g 
+                      key={test.id} 
+                      className="score-marker"
+                      onMouseEnter={() => setHoveredTestId(test.id)}
+                      onMouseLeave={() => setHoveredTestId(null)}
+                      style={{ 
+                        cursor: 'pointer',
+                        opacity: isHidden ? 0.15 : 1,
+                        transition: 'opacity 0.2s ease',
+                      }}
+                    >
+                      {/* Vertical line to base of curve */}
+                      <line
+                        x1={x}
+                        y1={baseY}
+                        x2={x}
+                        y2={chartBottomY}
+                        stroke={test.color}
+                        strokeWidth="2"
+                        strokeDasharray="6,4"
+                        opacity={isHidden ? 0.3 : 0.7}
+                      />
+                      {/* Connector line if stacked */}
+                      {y < baseY && (
+                        <line
+                          x1={x}
+                          y1={y + 18}
+                          x2={x}
+                          y2={baseY}
+                          stroke={test.color}
+                          strokeWidth="2"
+                          opacity={isHidden ? 0.2 : 0.5}
+                        />
+                      )}
+                      {/* Marker dot */}
+                      <circle
+                        cx={x}
+                        cy={y}
+                        r={isHovered ? 22 : 18}
+                        fill={test.color}
+                        stroke="white"
+                        strokeWidth={isHovered ? 4 : 3}
+                        filter={isHovered ? "url(#glow)" : "none"}
+                        style={{ transition: 'all 0.2s ease' }}
+                      />
+                      {/* Score on marker */}
+                      <text
+                        x={x}
+                        y={y + 5}
+                        textAnchor="middle"
+                        fill={textColor}
+                        fontSize={isHovered ? "14" : "12"}
+                        fontWeight="800"
+                        fontFamily="Nunito, sans-serif"
+                        style={{ transition: 'all 0.2s ease' }}
+                      >
+                        {test.score}
+                      </text>
+                      
+                      {/* Tooltip on hover */}
+                      {isHovered && (
+                        <g className="tooltip">
+                          {/* Tooltip background - dark background for better contrast */}
+                          <rect
+                            x={x - Math.max(test.name.length * 4.5 + 16, 70)}
+                            y={y - 65}
+                            width={Math.max(test.name.length * 9 + 32, 140)}
+                            height="36"
+                            rx="10"
+                            fill="#1a1a2e"
+                            stroke={test.color}
+                            strokeWidth="2"
+                            filter="url(#tooltipShadow)"
+                          />
+                          {/* Tooltip arrow */}
+                          <polygon
+                            points={`${x - 10},${y - 29} ${x + 10},${y - 29} ${x},${y - 18}`}
+                            fill="#1a1a2e"
+                            stroke={test.color}
+                            strokeWidth="2"
+                          />
+                          {/* Cover the arrow's top stroke */}
+                          <rect
+                            x={x - 9}
+                            y={y - 31}
+                            width="18"
+                            height="4"
+                            fill="#1a1a2e"
+                          />
+                          {/* Tooltip text */}
+                          <text
+                            x={x}
+                            y={y - 41}
+                            textAnchor="middle"
+                            fill="#ffffff"
+                            fontSize="14"
+                            fontWeight="700"
+                            fontFamily="Nunito, sans-serif"
+                          >
+                            {test.name}
+                          </text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+
+            {/* Test Selection Panel */}
+            {tests.length > 0 && (
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '20px',
+                padding: '28px',
+                marginBottom: '32px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '20px',
+                }}>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: '#c8d6e5',
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}>
+                    📊 Select Tests to Display
+                  </h3>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="control-btn" onClick={showAllTests}>
+                      Show All
+                    </button>
+                    <button className="control-btn" onClick={hideAllTests}>
+                      Hide All
+                    </button>
+                  </div>
+                </div>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '12px',
+                }}>
+                  {tests.map((test) => {
+                    const isChecked = visibleTestIds.has(test.id);
+                    return (
+                      <div
+                        key={test.id}
+                        className={`checkbox-card ${isChecked ? 'checked' : ''}`}
+                        onClick={() => toggleTestVisibility(test.id)}
+                        style={{ color: test.color }}
+                      >
+                        <div 
+                          className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
+                          style={{ borderColor: isChecked ? test.color : undefined, background: isChecked ? test.color : 'transparent' }}
+                        >
+                          {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color) }}>✓</span>}
+                        </div>
+                        <div
+                          style={{
+                            width: '12px',
+                            height: '36px',
+                            borderRadius: '6px',
+                            backgroundColor: test.color,
+                            flexShrink: 0,
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ 
+                            fontWeight: 700, 
+                            fontSize: '15px', 
+                            color: '#f8f9fa',
+                            marginBottom: '2px',
+                          }}>
+                            {test.name}
+                          </div>
+                          <div style={{
+                            fontSize: '13px',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                          }}>
+                            Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> • {getScoreDescription(test.score)}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Score Summary Cards */}
+            {getVisibleTests().length > 0 && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '16px',
+                marginBottom: '32px',
+              }}>
+                {getVisibleTests().map((test) => (
+                  <div
+                    key={test.id}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      borderRadius: '16px',
+                      padding: '20px',
+                      borderLeft: `5px solid ${test.color}`,
+                      backdropFilter: 'blur(10px)',
+                      border: `1px solid rgba(255, 255, 255, 0.08)`,
+                      borderLeftWidth: '5px',
+                      borderLeftColor: test.color,
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      marginBottom: '10px',
+                    }}>
+                      <div
+                        style={{
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '50%',
+                          backgroundColor: test.color,
+                        }}
+                      />
+                      <h4 style={{
+                        margin: 0,
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        color: '#f8f9fa',
+                      }}>
+                        {test.name}
+                      </h4>
+                    </div>
+                    <div style={{
+                      fontSize: '32px',
+                      fontWeight: 800,
+                      color: test.color,
+                      marginBottom: '4px',
+                    }}>
+                      {test.score}
+                    </div>
+                    <div style={{
+                      fontSize: '13px',
+                      color: 'rgba(255, 255, 255, 0.6)',
+                      fontWeight: 600,
+                    }}>
+                      {getScoreDescription(test.score)} Range
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {tests.length === 0 && (
+              <div style={{
+                textAlign: 'center',
+                padding: '80px 40px',
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '20px',
+                color: 'rgba(255, 255, 255, 0.5)',
+              }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
+                <p style={{ fontSize: '18px', margin: 0 }}>
+                  Switch to Input Mode to add test scores
+                </p>
+              </div>
+            )}
+
+            {/* Parent-Friendly Explanation (visible in print) */}
+            {tests.length > 0 && (
+              <div className="print-only" style={{
+                display: 'none',
+                background: '#f8f9fa',
+                borderRadius: '12px',
+                padding: '24px',
+                marginBottom: '24px',
+                border: '1px solid #ddd',
+              }}>
+                <h3 style={{
+                  margin: '0 0 16px 0',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#1a1a2e',
+                }}>
+                  Understanding Your Child's Assessment Results
+                </h3>
+                <p style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: '#333',
+                }}>
+                  This report shows your child's test scores plotted on a bell curve, which represents how scores typically distribute across a population. The bell curve helps visualize where your child's performance falls relative to expected norms.
+                </p>
+                <p style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: '#333',
+                }}>
+                  <strong>The Average Range (85-115):</strong> Most students score in this range (about 68% of all test-takers). Scores in this range indicate typical, age-appropriate performance.
+                </p>
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  lineHeight: '1.6',
+                  color: '#333',
+                }}>
+                  <strong>Score Scale:</strong> Scores are standardized with an average of 100 and typically range from 40 to 160. Each 15-point increment represents one standard deviation from the average.
+                </p>
+              </div>
+            )}
+
+            {/* Interpretation Guide */}
+            {tests.length > 0 && (
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '20px',
+                padding: '28px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
+                <h3 style={{
+                  margin: '0 0 20px 0',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#c8d6e5',
+                }}>
+                  📖 Score Interpretation Guide
+                </h3>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '16px',
+                }}>
+                  {[
+                    { range: '130+', label: 'Very High', desc: 'Top 2%' },
+                    { range: '115-129', label: 'High', desc: 'Top 16%' },
+                    { range: '85-114', label: 'Average', desc: 'Middle 68%' },
+                    { range: '70-84', label: 'Low', desc: 'Bottom 16%' },
+                    { range: 'Below 70', label: 'Very Low', desc: 'Bottom 2%' },
+                  ].map((item) => (
+                    <div
+                      key={item.range}
+                      style={{
+                        padding: '16px',
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        borderRadius: '12px',
+                      }}
+                    >
+                      <div style={{
+                        fontSize: '16px',
+                        fontWeight: 700,
+                        marginBottom: '4px',
+                      }}>
+                        {item.range}
+                      </div>
+                      <div style={{
+                        fontSize: '13px',
+                        color: 'rgba(255, 255, 255, 0.7)',
+                      }}>
+                        {item.label} • {item.desc}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Print-only footer with branding */}
+            <div className="print-only print-footer" style={{ display: 'none' }}>
+              {branding.footerText && (
+                <p style={{ margin: '0 0 10px 0' }}>
+                  {branding.footerText}
+                </p>
+              )}
+              <p style={{ margin: 0 }}>
+                Generated on {new Date().toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+                {branding.schoolName && ` • ${branding.schoolName}`}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<BellCurveApp />);
     </script>
