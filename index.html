@@ -45,6 +45,63 @@ const SCORE_LABELS = [
   { score: 145, label: 'Very Superior' },
 ];
 
+const PRESET_TEMPLATES = [
+  {
+    name: 'Cognitive Snapshot',
+    description: 'Core cognitive domains with typical standard scores.',
+    tests: [
+      { name: 'Verbal Comprehension', score: 105 },
+      { name: 'Visual Spatial', score: 98 },
+      { name: 'Fluid Reasoning', score: 112 },
+      { name: 'Working Memory', score: 92 },
+      { name: 'Processing Speed', score: 88 },
+    ],
+  },
+  {
+    name: 'Academic Achievement',
+    description: 'Sample achievement profile across subjects.',
+    tests: [
+      { name: 'Reading', score: 103 },
+      { name: 'Math', score: 95 },
+      { name: 'Writing', score: 110 },
+      { name: 'Spelling', score: 99 },
+    ],
+  },
+  {
+    name: 'Strengths & Supports',
+    description: 'Balanced profile with clear strengths and needs.',
+    tests: [
+      { name: 'Listening Comprehension', score: 120 },
+      { name: 'Word Reading', score: 107 },
+      { name: 'Math Calculation', score: 84 },
+      { name: 'Writing Samples', score: 90 },
+    ],
+  },
+];
+
+const HELP_STEPS = [
+  {
+    title: 'Step 1: Enter Student Info',
+    body: 'Add a student name and assessment date to personalize the report.',
+  },
+  {
+    title: 'Step 2: Add Scores',
+    body: 'Add each test/section score (40-160). Choose colors to differentiate tests.',
+  },
+  {
+    title: 'Step 3: Use Templates (Optional)',
+    body: 'Load a preset template to quickly add common assessment domains.',
+  },
+  {
+    title: 'Step 4: Review & Edit Summary',
+    body: 'Switch to Presentation mode to review the bell curve, tooltips, and editable summary.',
+  },
+  {
+    title: 'Step 5: Print or Download PDF',
+    body: 'Use Print Preview for final formatting and Download PDF for a shareable report.',
+  },
+];
+
 // Helper function to determine if a color is light or dark
 const getContrastTextColor = (hexColor) => {
   const hex = hexColor.replace('#', '');
@@ -63,6 +120,10 @@ function BellCurveApp() {
   const [assessmentDate, setAssessmentDate] = React.useState('');
   const [visibleTestIds, setVisibleTestIds] = React.useState(new Set());
   const [hoveredTestId, setHoveredTestId] = React.useState(null);
+  const [summaryOverride, setSummaryOverride] = React.useState('');
+  const [isPrintPreview, setIsPrintPreview] = React.useState(false);
+  const [showHelpPanel, setShowHelpPanel] = React.useState(false);
+  const importInputRef = React.useRef(null);
 
   // Branding state
   const [branding, setBranding] = React.useState({
@@ -107,6 +168,20 @@ function BellCurveApp() {
     }
   }, [branding]);
 
+  React.useEffect(() => {
+    const handleAfterPrint = () => {
+      setIsPrintPreview(false);
+    };
+    window.addEventListener('afterprint', handleAfterPrint);
+    return () => window.removeEventListener('afterprint', handleAfterPrint);
+  }, []);
+
+  React.useEffect(() => {
+    if (mode !== 'presentation') {
+      setIsPrintPreview(false);
+    }
+  }, [mode]);
+
   // Save current profile
   const saveCurrentProfile = () => {
     if (!studentName) {
@@ -119,6 +194,7 @@ function BellCurveApp() {
       studentName,
       assessmentDate,
       tests: tests.map(t => ({ ...t })),
+      summaryOverride,
       savedAt: new Date().toISOString(),
     };
 
@@ -143,6 +219,7 @@ function BellCurveApp() {
     setStudentName(profile.studentName);
     setAssessmentDate(profile.assessmentDate);
     setTests(profile.tests.map(t => ({ ...t })));
+    setSummaryOverride(profile.summaryOverride || '');
     setCurrentProfileId(profile.id);
     setVisibleTestIds(new Set(profile.tests.map(t => t.id)));
     setShowProfilesPanel(false);
@@ -176,6 +253,7 @@ function BellCurveApp() {
     setStudentName('');
     setAssessmentDate('');
     setTests([]);
+    setSummaryOverride('');
     setCurrentProfileId(null);
     setVisibleTestIds(new Set());
     setShowProfilesPanel(false);
@@ -196,6 +274,80 @@ function BellCurveApp() {
   // Print/Export PDF functionality
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownloadPdf = () => {
+    setIsPrintPreview(true);
+    setTimeout(() => {
+      window.print();
+    }, 100);
+  };
+
+  const handleExportProfiles = () => {
+    if (savedProfiles.length === 0) {
+      alert('No saved profiles to export yet.');
+      return;
+    }
+
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      version: '1.0',
+      profiles: savedProfiles,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `bell-curve-profiles-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportProfiles = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result);
+        const incomingProfiles = Array.isArray(parsed) ? parsed : parsed.profiles;
+        if (!Array.isArray(incomingProfiles)) {
+          throw new Error('Invalid file format.');
+        }
+        const confirmImport = confirm('Import profiles? Existing profiles will be merged.');
+        if (!confirmImport) {
+          event.target.value = '';
+          return;
+        }
+        const merged = [...savedProfiles, ...incomingProfiles];
+        const deduped = Array.from(new Map(merged.map(p => [p.id, p])).values());
+        setSavedProfiles(deduped);
+        localStorage.setItem('bellcurve_profiles', JSON.stringify(deduped));
+        alert(`Imported ${incomingProfiles.length} profile(s) successfully.`);
+      } catch (error) {
+        console.error('Error importing profiles:', error);
+        alert('Unable to import profiles. Please check the file format.');
+      } finally {
+        event.target.value = '';
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const applyTemplate = (template) => {
+    if (tests.length > 0) {
+      const confirmReplace = confirm('Apply template? This will replace existing tests.');
+      if (!confirmReplace) return;
+    }
+    const templatedTests = template.tests.map((test, index) => ({
+      ...test,
+      id: Date.now() + index,
+      color: PRESET_COLORS[index % PRESET_COLORS.length].value,
+    }));
+    setTests(templatedTests);
+    setSummaryOverride('');
+    setVisibleTestIds(new Set(templatedTests.map(t => t.id)));
   };
 
   const addTest = () => {
@@ -462,14 +614,21 @@ function BellCurveApp() {
     return positions;
   };
 
+  const computedSummary = summaryOverride.trim() ? summaryOverride : generateSummary();
+
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
-      fontFamily: "'Nunito', 'Segoe UI', sans-serif",
-      color: '#f8f9fa',
-      padding: '0',
-    }}>
+    <div
+      className={isPrintPreview ? 'print-preview' : ''}
+      style={{
+        minHeight: '100vh',
+        background: isPrintPreview
+          ? '#ffffff'
+          : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+        fontFamily: "'Nunito', 'Segoe UI', sans-serif",
+        color: isPrintPreview ? '#1a1a2e' : '#f8f9fa',
+        padding: '0',
+      }}
+    >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
         
@@ -734,6 +893,31 @@ function BellCurveApp() {
           transition: opacity 0.2s ease;
         }
 
+        .print-preview {
+          background: #ffffff !important;
+          color: #1a1a2e !important;
+        }
+
+        .print-preview .no-print {
+          display: none !important;
+        }
+
+        .print-preview .print-only {
+          display: block !important;
+        }
+
+        .print-preview .chart-container {
+          box-shadow: none !important;
+          border: 1px solid #ddd !important;
+          background: #ffffff !important;
+        }
+
+        .print-preview .presentation-header {
+          border-bottom: 2px solid #667eea;
+          padding-bottom: 20px;
+          margin-bottom: 30px;
+        }
+
         /* Print Styles for PDF Export */
         @media print {
           body {
@@ -872,6 +1056,13 @@ function BellCurveApp() {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button
             className="mode-btn inactive no-print"
+            onClick={() => setShowHelpPanel(true)}
+            title="View the walkthrough guide"
+          >
+            ❓ Help
+          </button>
+          <button
+            className="mode-btn inactive no-print"
             onClick={() => setShowBrandingPanel(true)}
             title="Configure school branding"
           >
@@ -897,13 +1088,22 @@ function BellCurveApp() {
             📊 Presentation
           </button>
           {mode === 'presentation' && tests.length > 0 && (
-            <button
-              className="mode-btn inactive no-print"
-              onClick={handlePrint}
-              title="Print or export to PDF"
-            >
-              🖨️ Print/PDF
-            </button>
+            <>
+              <button
+                className="mode-btn inactive no-print"
+                onClick={() => setIsPrintPreview(!isPrintPreview)}
+                title="Toggle print preview"
+              >
+                {isPrintPreview ? '🧾 Exit Preview' : '🧾 Print Preview'}
+              </button>
+              <button
+                className="mode-btn inactive no-print"
+                onClick={handleDownloadPdf}
+                title="Download or save as PDF"
+              >
+                📄 Download PDF
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -1110,6 +1310,30 @@ function BellCurveApp() {
               </button>
             </div>
 
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '24px' }}>
+              <button
+                className="control-btn"
+                onClick={handleExportProfiles}
+                style={{ flex: 1, padding: '14px 18px' }}
+              >
+                ⬇️ Export Profiles
+              </button>
+              <button
+                className="control-btn"
+                onClick={() => importInputRef.current?.click()}
+                style={{ flex: 1, padding: '14px 18px' }}
+              >
+                ⬆️ Import Profiles
+              </button>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json"
+                onChange={handleImportProfiles}
+                style={{ display: 'none' }}
+              />
+            </div>
+
             {savedProfiles.length === 0 ? (
               <div style={{
                 textAlign: 'center',
@@ -1176,6 +1400,86 @@ function BellCurveApp() {
                 className="control-btn"
                 onClick={() => setShowProfilesPanel(false)}
                 style={{ flex: 1, padding: '14px 28px' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Help & Walkthrough Panel */}
+      {showHelpPanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '700px',
+            width: '100%',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          }}>
+            <h2 style={{
+              margin: '0 0 30px 0',
+              fontSize: '28px',
+              fontWeight: 700,
+              color: '#f8f9fa',
+            }}>
+              ❓ Quick Walkthrough
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+              {HELP_STEPS.map((step, index) => (
+                <div key={step.title} style={{
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  borderRadius: '16px',
+                  padding: '18px 20px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}>
+                  <div style={{
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    color: '#c8d6e5',
+                    marginBottom: '8px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '1px',
+                  }}>
+                    {index + 1}. {step.title}
+                  </div>
+                  <div style={{ fontSize: '15px', color: 'rgba(255, 255, 255, 0.8)' }}>
+                    {step.body}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
+              <button
+                className="add-btn"
+                onClick={() => setShowHelpPanel(false)}
+                style={{ flex: 1 }}
+              >
+                Got it
+              </button>
+              <button
+                className="control-btn"
+                onClick={() => setShowHelpPanel(false)}
+                style={{ padding: '14px 28px' }}
               >
                 Close
               </button>
@@ -1337,6 +1641,52 @@ function BellCurveApp() {
                 >
                   Add to Chart
                 </button>
+              </div>
+
+              {/* Preset Templates */}
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '20px',
+                padding: '28px',
+                marginBottom: '28px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
+                <h3 style={{
+                  margin: '0 0 20px 0',
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: '#c8d6e5',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                }}>
+                  📚 Preset Templates
+                </h3>
+                <p style={{
+                  margin: '0 0 16px 0',
+                  fontSize: '13px',
+                  color: 'rgba(255, 255, 255, 0.6)',
+                }}>
+                  Load a preset bundle of tests to speed up data entry.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {PRESET_TEMPLATES.map((template) => (
+                    <button
+                      key={template.name}
+                      className="control-btn"
+                      onClick={() => applyTemplate(template)}
+                      style={{
+                        textAlign: 'left',
+                        padding: '14px 18px',
+                        borderRadius: '12px',
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, marginBottom: '4px' }}>{template.name}</div>
+                      <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)' }}>
+                        {template.description}
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* Test List */}
@@ -2133,32 +2483,75 @@ function BellCurveApp() {
 
             {/* Assessment Summary */}
             {tests.length > 0 && (
-              <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
-                borderRadius: '20px',
-                padding: '28px',
-                marginBottom: '32px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-              }}>
-                <h3 style={{
-                  margin: '0 0 20px 0',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: '#c8d6e5',
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
-                }}>
-                  📝 Assessment Summary
-                </h3>
+              <>
                 <div style={{
-                  fontSize: '15px',
-                  lineHeight: '1.8',
-                  color: 'rgba(255, 255, 255, 0.85)',
-                  textAlign: 'justify',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  marginBottom: '32px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}>
-                  {generateSummary()}
+                  <h3 style={{
+                    margin: '0 0 20px 0',
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: '#c8d6e5',
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}>
+                    ✍️ Editable Summary
+                  </h3>
+                  <p style={{
+                    margin: '0 0 12px 0',
+                    fontSize: '13px',
+                    color: 'rgba(255, 255, 255, 0.6)',
+                  }}>
+                    Customize the auto-generated summary for this student. Leave blank to use the default narrative.
+                  </p>
+                  <textarea
+                    value={summaryOverride}
+                    onChange={(e) => setSummaryOverride(e.target.value)}
+                    placeholder={generateSummary()}
+                    className="input-field"
+                    style={{ width: '100%', minHeight: '140px', resize: 'vertical' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                    <button
+                      className="control-btn"
+                      onClick={() => setSummaryOverride('')}
+                    >
+                      Reset to Auto Summary
+                    </button>
+                  </div>
                 </div>
-              </div>
+
+                <div style={{
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  borderRadius: '20px',
+                  padding: '28px',
+                  marginBottom: '32px',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                }}>
+                  <h3 style={{
+                    margin: '0 0 20px 0',
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: '#c8d6e5',
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}>
+                    📝 Assessment Summary
+                  </h3>
+                  <div style={{
+                    fontSize: '15px',
+                    lineHeight: '1.8',
+                    color: 'rgba(255, 255, 255, 0.85)',
+                    textAlign: 'justify',
+                  }}>
+                    {computedSummary}
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Parent-Friendly Explanation (visible in print) */}
