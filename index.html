@@ -102,6 +102,38 @@ const HELP_STEPS = [
   },
 ];
 
+const PREDEFINED_TESTS = [
+  'Kaufman Assessment Battery for Children',
+  'Mental Processing Index',
+  'Fluid Crystallized Index',
+  'Sequential Index',
+  'Simultaneous Index',
+  'Learning Index',
+  'Planning Index',
+  'Comprehensive Test of Nonverbal Intelligence 2nd Edition (CTONI-2)',
+  'Pictorial Scale Composite',
+  'Geometric Composite',
+  'Full Scale',
+  'Nonverbal Index',
+  'Cognitive Assessment System-Second Edition Brief (CAS-2 Brief)',
+  'Planned Codes',
+  'Simultaneous Matrices',
+  'Expressive Attention',
+  'Successive Digits',
+  'Beery-Buktenica Developmental Test of Visual Motor Integration, Sixth Edition',
+  'Phonological Awareness',
+  'Phonological Memory',
+  'Rapid Symbolic Naming',
+  'Phonological Processing Index',
+  'Auditory Memory Index',
+  'Listening Comprehension Index',
+  'Wide Range Assessment of Memory and Learning- Third Edition (WRAML-3)',
+  'Verbal Memory',
+  'Visual Memory',
+  'Attention/Concentration',
+  'General Memory',
+];
+
 // Helper function to determine if a color is light or dark
 const getContrastTextColor = (hexColor) => {
   const hex = hexColor.replace('#', '');
@@ -141,6 +173,11 @@ function BellCurveApp() {
 
   // Bell curve label display options
   const [showLabelsOnCurve, setShowLabelsOnCurve] = React.useState(false);
+
+  // Autocomplete state
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
+  const [showAutocomplete, setShowAutocomplete] = React.useState(false);
+  const autocompleteRef = React.useRef(null);
 
   // Load branding and profiles from localStorage on mount
   React.useEffect(() => {
@@ -349,6 +386,40 @@ function BellCurveApp() {
     setSummaryOverride('');
     setVisibleTestIds(new Set(templatedTests.map(t => t.id)));
   };
+
+  // Autocomplete handlers
+  const handleTestNameChange = (e) => {
+    const value = e.target.value;
+    setNewTest({ ...newTest, name: value });
+
+    if (value.trim().length > 0) {
+      const filtered = PREDEFINED_TESTS.filter(test =>
+        test.toLowerCase().includes(value.toLowerCase())
+      );
+      setAutocompleteSuggestions(filtered);
+      setShowAutocomplete(filtered.length > 0);
+    } else {
+      setAutocompleteSuggestions([]);
+      setShowAutocomplete(false);
+    }
+  };
+
+  const handleSuggestionClick = (suggestion) => {
+    setNewTest({ ...newTest, name: suggestion });
+    setShowAutocomplete(false);
+    setAutocompleteSuggestions([]);
+  };
+
+  // Close autocomplete when clicking outside
+  React.useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (autocompleteRef.current && !autocompleteRef.current.contains(event.target)) {
+        setShowAutocomplete(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const addTest = () => {
     if (newTest.name && newTest.score) {
@@ -1574,14 +1645,57 @@ function BellCurveApp() {
                 </h3>
                 
                 <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
-                  <input
-                    type="text"
-                    placeholder="Test/Section Name"
-                    value={newTest.name}
-                    onChange={(e) => setNewTest({ ...newTest, name: e.target.value })}
-                    className="input-field"
-                    style={{ flex: 2 }}
-                  />
+                  <div style={{ flex: 2, position: 'relative' }} ref={autocompleteRef}>
+                    <input
+                      type="text"
+                      placeholder="Test/Section Name"
+                      value={newTest.name}
+                      onChange={handleTestNameChange}
+                      className="input-field"
+                      style={{ width: '100%' }}
+                    />
+                    {showAutocomplete && autocompleteSuggestions.length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        background: '#1a1a2e',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '12px',
+                        marginTop: '4px',
+                        maxHeight: '300px',
+                        overflowY: 'auto',
+                        zIndex: 1000,
+                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+                      }}>
+                        {autocompleteSuggestions.map((suggestion, index) => (
+                          <div
+                            key={index}
+                            onClick={() => handleSuggestionClick(suggestion)}
+                            style={{
+                              padding: '12px 16px',
+                              cursor: 'pointer',
+                              borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
+                              transition: 'all 0.2s ease',
+                              fontSize: '14px',
+                              color: 'rgba(255, 255, 255, 0.85)',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.background = 'rgba(102, 126, 234, 0.2)';
+                              e.target.style.color = '#ffffff';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.background = 'transparent';
+                              e.target.style.color = 'rgba(255, 255, 255, 0.85)';
+                            }}
+                          >
+                            {suggestion}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="number"
                     placeholder="Score (40-160)"
