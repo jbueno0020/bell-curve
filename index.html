@@ -104,6 +104,91 @@ const HELP_STEPS = [
 
 const PREDEFINED_TESTS = [
   {
+    name: 'Wechsler Intelligence Scale for Children - Fifth Edition (WISC-V)',
+    subtests: [
+      'Full Scale IQ',
+      'Verbal Comprehension Index',
+      'Visual Spatial Index',
+      'Fluid Reasoning Index',
+      'Working Memory Index',
+      'Processing Speed Index',
+    ]
+  },
+  {
+    name: 'Wechsler Individual Achievement Test - Fourth Edition (WIAT-IV)',
+    subtests: [
+      'Total Achievement',
+      'Reading Composite',
+      'Mathematics Composite',
+      'Written Expression Composite',
+      'Oral Language Composite',
+    ]
+  },
+  {
+    name: 'Woodcock-Johnson IV Tests of Cognitive Abilities (WJ-IV COG)',
+    subtests: [
+      'General Intellectual Ability',
+      'Comprehension-Knowledge',
+      'Fluid Reasoning',
+      'Short-Term Working Memory',
+      'Cognitive Processing Speed',
+      'Auditory Processing',
+      'Long-Term Retrieval',
+      'Visual Processing',
+    ]
+  },
+  {
+    name: 'Woodcock-Johnson IV Tests of Achievement (WJ-IV ACH)',
+    subtests: [
+      'Broad Reading',
+      'Broad Mathematics',
+      'Broad Written Language',
+      'Academic Skills',
+      'Academic Fluency',
+      'Academic Applications',
+    ]
+  },
+  {
+    name: 'NEPSY-II Neuropsychological Assessment',
+    subtests: [
+      'Attention/Executive Functioning',
+      'Language',
+      'Memory and Learning',
+      'Sensorimotor',
+      'Social Perception',
+      'Visuospatial Processing',
+    ]
+  },
+  {
+    name: 'Vineland Adaptive Behavior Scales - Third Edition (Vineland-3)',
+    subtests: [
+      'Adaptive Behavior Composite',
+      'Communication Domain',
+      'Daily Living Skills Domain',
+      'Socialization Domain',
+      'Motor Skills Domain',
+    ]
+  },
+  {
+    name: 'Conners 4 ADHD Assessment',
+    subtests: [
+      'Conners 4 ADHD Index',
+      'Inattention/Executive Dysfunction',
+      'Hyperactivity',
+      'Impulsivity',
+      'Emotional Dysregulation',
+    ]
+  },
+  {
+    name: 'Behavior Assessment System for Children - Third Edition (BASC-3)',
+    subtests: [
+      'Behavioral Symptoms Index',
+      'Externalizing Problems',
+      'Internalizing Problems',
+      'Adaptive Skills',
+    ]
+  },
+  {
     name: 'Kaufman Assessment Battery for Children (KABC-II)',
     subtests: [
       'Mental Processing Index',
@@ -151,6 +236,51 @@ const PREDEFINED_TESTS = [
     ]
   },
   // Standalone tests/indices
+  'Full Scale IQ',
+  'Verbal Comprehension Index',
+  'Visual Spatial Index',
+  'Fluid Reasoning Index',
+  'Working Memory Index',
+  'Processing Speed Index',
+  'Total Achievement',
+  'Reading Composite',
+  'Mathematics Composite',
+  'Written Expression Composite',
+  'Oral Language Composite',
+  'General Intellectual Ability',
+  'Comprehension-Knowledge',
+  'Fluid Reasoning',
+  'Short-Term Working Memory',
+  'Cognitive Processing Speed',
+  'Auditory Processing',
+  'Long-Term Retrieval',
+  'Visual Processing',
+  'Broad Reading',
+  'Broad Mathematics',
+  'Broad Written Language',
+  'Academic Skills',
+  'Academic Fluency',
+  'Academic Applications',
+  'Attention/Executive Functioning',
+  'Language',
+  'Memory and Learning',
+  'Sensorimotor',
+  'Social Perception',
+  'Visuospatial Processing',
+  'Adaptive Behavior Composite',
+  'Communication Domain',
+  'Daily Living Skills Domain',
+  'Socialization Domain',
+  'Motor Skills Domain',
+  'Conners 4 ADHD Index',
+  'Inattention/Executive Dysfunction',
+  'Hyperactivity',
+  'Impulsivity',
+  'Emotional Dysregulation',
+  'Behavioral Symptoms Index',
+  'Externalizing Problems',
+  'Internalizing Problems',
+  'Adaptive Skills',
   'Beery-Buktenica Developmental Test of Visual Motor Integration, Sixth Edition',
   'Auditory Memory Index',
   'Listening Comprehension Index',
@@ -222,6 +352,10 @@ function BellCurveApp() {
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
   const [showAutocomplete, setShowAutocomplete] = React.useState(false);
   const autocompleteRef = React.useRef(null);
+
+  // Edit test state
+  const [editingTestId, setEditingTestId] = React.useState(null);
+  const [editingTest, setEditingTest] = React.useState(null);
 
   // Load branding and profiles from localStorage on mount
   React.useEffect(() => {
@@ -457,16 +591,18 @@ function BellCurveApp() {
   const handleSuggestionClick = (suggestion) => {
     // Check if suggestion is a parent test with subtests
     if (typeof suggestion === 'object' && suggestion.subtests) {
-      // Auto-add all subtests
+      // Auto-add all subtests with the same color
+      const sharedColor = newTest.color;
       const newTests = suggestion.subtests.map((subtest, index) => ({
         name: subtest,
         score: 100, // Default score, user can edit
         id: Date.now() + index,
-        color: PRESET_COLORS[(tests.length + index) % PRESET_COLORS.length].value,
+        color: sharedColor,
       }));
       setTests([...tests, ...newTests]);
       setVisibleTestIds(prev => new Set([...prev, ...newTests.map(t => t.id)]));
-      setNewTest({ name: '', score: '', color: PRESET_COLORS[(tests.length + newTests.length) % PRESET_COLORS.length].value });
+      const nextColorIndex = (tests.length + newTests.length) % PRESET_COLORS.length;
+      setNewTest({ name: '', score: '', color: PRESET_COLORS[nextColorIndex].value });
     } else {
       // Single test/subtest - just populate the input field
       const testName = typeof suggestion === 'string' ? suggestion : suggestion.name;
@@ -507,6 +643,27 @@ function BellCurveApp() {
       newSet.delete(id);
       return newSet;
     });
+  };
+
+  const startEditingTest = (test) => {
+    setEditingTestId(test.id);
+    setEditingTest({ ...test });
+  };
+
+  const cancelEditingTest = () => {
+    setEditingTestId(null);
+    setEditingTest(null);
+  };
+
+  const saveEditedTest = () => {
+    if (editingTest && editingTest.name && editingTest.score) {
+      const score = parseInt(editingTest.score);
+      if (score >= 40 && score <= 160) {
+        setTests(tests.map(t => t.id === editingTestId ? { ...editingTest, score } : t));
+        setEditingTestId(null);
+        setEditingTest(null);
+      }
+    }
   };
 
   const toggleTestVisibility = (id) => {
@@ -1870,36 +2027,112 @@ function BellCurveApp() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {tests.map((test) => (
-                      <div key={test.id} className="test-card">
-                        <div
-                          style={{
-                            width: '14px',
-                            height: '40px',
-                            borderRadius: '7px',
-                            backgroundColor: test.color,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px' }}>
-                            {test.name}
-                          </div>
-                          <div style={{
-                            fontSize: '13px',
-                            color: 'rgba(255, 255, 255, 0.5)',
-                          }}>
-                            Score: {test.score} ({formatPercentile(getPercentileRank(test.score))} %ile) • {getScoreDescription(test.score)}
-                          </div>
+                    {tests.map((test) => {
+                      const isEditing = editingTestId === test.id;
+
+                      return (
+                        <div key={test.id} className="test-card">
+                          {isEditing ? (
+                            <>
+                              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <input
+                                  type="text"
+                                  value={editingTest.name}
+                                  onChange={(e) => setEditingTest({ ...editingTest, name: e.target.value })}
+                                  className="input-field"
+                                  placeholder="Test name"
+                                  style={{ fontSize: '14px' }}
+                                />
+                                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                  <input
+                                    type="number"
+                                    value={editingTest.score}
+                                    onChange={(e) => setEditingTest({ ...editingTest, score: e.target.value })}
+                                    className="input-field"
+                                    placeholder="Score"
+                                    min="40"
+                                    max="160"
+                                    style={{ flex: 1, fontSize: '14px' }}
+                                  />
+                                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                    {PRESET_COLORS.map((color) => (
+                                      <div
+                                        key={color.value}
+                                        style={{
+                                          width: '28px',
+                                          height: '28px',
+                                          borderRadius: '50%',
+                                          backgroundColor: color.value,
+                                          cursor: 'pointer',
+                                          border: editingTest.color === color.value ? '3px solid #ffffff' : '2px solid rgba(255, 255, 255, 0.2)',
+                                          transition: 'all 0.2s ease',
+                                        }}
+                                        onClick={() => setEditingTest({ ...editingTest, color: color.value })}
+                                        title={color.name}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                                <button
+                                  className="control-btn"
+                                  onClick={saveEditedTest}
+                                  style={{ padding: '8px 16px', fontSize: '13px', background: 'rgba(0, 184, 148, 0.2)', color: '#00b894' }}
+                                >
+                                  ✓ Save
+                                </button>
+                                <button
+                                  className="control-btn"
+                                  onClick={cancelEditingTest}
+                                  style={{ padding: '8px 16px', fontSize: '13px', background: 'rgba(255, 107, 107, 0.2)', color: '#ff6b6b' }}
+                                >
+                                  ✕ Cancel
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div
+                                style={{
+                                  width: '14px',
+                                  height: '40px',
+                                  borderRadius: '7px',
+                                  backgroundColor: test.color,
+                                  flexShrink: 0,
+                                }}
+                              />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px' }}>
+                                  {test.name}
+                                </div>
+                                <div style={{
+                                  fontSize: '13px',
+                                  color: 'rgba(255, 255, 255, 0.5)',
+                                }}>
+                                  Score: {test.score} ({formatPercentile(getPercentileRank(test.score))} %ile) • {getScoreDescription(test.score)}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                  className="control-btn"
+                                  onClick={() => startEditingTest(test)}
+                                  style={{ padding: '8px 16px', fontSize: '13px' }}
+                                >
+                                  ✏️ Edit
+                                </button>
+                                <button
+                                  className="remove-btn"
+                                  onClick={() => removeTest(test.id)}
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
-                        <button
-                          className="remove-btn"
-                          onClick={() => removeTest(test.id)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
