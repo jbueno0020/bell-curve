@@ -103,31 +103,75 @@ const HELP_STEPS = [
 ];
 
 const PREDEFINED_TESTS = [
-  'Kaufman Assessment Battery for Children',
+  {
+    name: 'Kaufman Assessment Battery for Children (KABC-II)',
+    subtests: [
+      'Mental Processing Index',
+      'Fluid Crystallized Index',
+      'Sequential Index',
+      'Simultaneous Index',
+      'Learning Index',
+      'Planning Index',
+    ]
+  },
+  {
+    name: 'Comprehensive Test of Phonological Processing (CTOPP-2)',
+    subtests: [
+      'Phonological Awareness',
+      'Phonological Memory',
+      'Rapid Symbolic Naming',
+      'Phonological Processing Index',
+    ]
+  },
+  {
+    name: 'Comprehensive Test of Nonverbal Intelligence 2nd Edition (CTONI-2)',
+    subtests: [
+      'Pictorial Scale Composite',
+      'Geometric Composite',
+      'Full Scale',
+      'Nonverbal Index',
+    ]
+  },
+  {
+    name: 'Cognitive Assessment System-Second Edition Brief (CAS-2 Brief)',
+    subtests: [
+      'Planned Codes',
+      'Simultaneous Matrices',
+      'Expressive Attention',
+      'Successive Digits',
+    ]
+  },
+  {
+    name: 'Wide Range Assessment of Memory and Learning- Third Edition (WRAML-3)',
+    subtests: [
+      'Verbal Memory',
+      'Visual Memory',
+      'Attention/Concentration',
+      'General Memory',
+    ]
+  },
+  // Standalone tests/indices
+  'Beery-Buktenica Developmental Test of Visual Motor Integration, Sixth Edition',
+  'Auditory Memory Index',
+  'Listening Comprehension Index',
   'Mental Processing Index',
   'Fluid Crystallized Index',
   'Sequential Index',
   'Simultaneous Index',
   'Learning Index',
   'Planning Index',
-  'Comprehensive Test of Nonverbal Intelligence 2nd Edition (CTONI-2)',
-  'Pictorial Scale Composite',
-  'Geometric Composite',
-  'Full Scale',
-  'Nonverbal Index',
-  'Cognitive Assessment System-Second Edition Brief (CAS-2 Brief)',
-  'Planned Codes',
-  'Simultaneous Matrices',
-  'Expressive Attention',
-  'Successive Digits',
-  'Beery-Buktenica Developmental Test of Visual Motor Integration, Sixth Edition',
   'Phonological Awareness',
   'Phonological Memory',
   'Rapid Symbolic Naming',
   'Phonological Processing Index',
-  'Auditory Memory Index',
-  'Listening Comprehension Index',
-  'Wide Range Assessment of Memory and Learning- Third Edition (WRAML-3)',
+  'Pictorial Scale Composite',
+  'Geometric Composite',
+  'Full Scale',
+  'Nonverbal Index',
+  'Planned Codes',
+  'Simultaneous Matrices',
+  'Expressive Attention',
+  'Successive Digits',
   'Verbal Memory',
   'Visual Memory',
   'Attention/Concentration',
@@ -393,9 +437,15 @@ function BellCurveApp() {
     setNewTest({ ...newTest, name: value });
 
     if (value.trim().length > 0) {
-      const filtered = PREDEFINED_TESTS.filter(test =>
-        test.toLowerCase().includes(value.toLowerCase())
-      );
+      const filtered = PREDEFINED_TESTS.filter(test => {
+        if (typeof test === 'string') {
+          return test.toLowerCase().includes(value.toLowerCase());
+        } else {
+          // Check parent test name or any subtest name
+          return test.name.toLowerCase().includes(value.toLowerCase()) ||
+                 test.subtests.some(subtest => subtest.toLowerCase().includes(value.toLowerCase()));
+        }
+      });
       setAutocompleteSuggestions(filtered);
       setShowAutocomplete(filtered.length > 0);
     } else {
@@ -405,7 +455,23 @@ function BellCurveApp() {
   };
 
   const handleSuggestionClick = (suggestion) => {
-    setNewTest({ ...newTest, name: suggestion });
+    // Check if suggestion is a parent test with subtests
+    if (typeof suggestion === 'object' && suggestion.subtests) {
+      // Auto-add all subtests
+      const newTests = suggestion.subtests.map((subtest, index) => ({
+        name: subtest,
+        score: 100, // Default score, user can edit
+        id: Date.now() + index,
+        color: PRESET_COLORS[(tests.length + index) % PRESET_COLORS.length].value,
+      }));
+      setTests([...tests, ...newTests]);
+      setVisibleTestIds(prev => new Set([...prev, ...newTests.map(t => t.id)]));
+      setNewTest({ name: '', score: '', color: PRESET_COLORS[(tests.length + newTests.length) % PRESET_COLORS.length].value });
+    } else {
+      // Single test/subtest - just populate the input field
+      const testName = typeof suggestion === 'string' ? suggestion : suggestion.name;
+      setNewTest({ ...newTest, name: testName });
+    }
     setShowAutocomplete(false);
     setAutocompleteSuggestions([]);
   };
@@ -1669,30 +1735,48 @@ function BellCurveApp() {
                         zIndex: 1000,
                         boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
                       }}>
-                        {autocompleteSuggestions.map((suggestion, index) => (
-                          <div
-                            key={index}
-                            onClick={() => handleSuggestionClick(suggestion)}
-                            style={{
-                              padding: '12px 16px',
-                              cursor: 'pointer',
-                              borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
-                              transition: 'all 0.2s ease',
-                              fontSize: '14px',
-                              color: 'rgba(255, 255, 255, 0.85)',
-                            }}
-                            onMouseEnter={(e) => {
-                              e.target.style.background = 'rgba(102, 126, 234, 0.2)';
-                              e.target.style.color = '#ffffff';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.target.style.background = 'transparent';
-                              e.target.style.color = 'rgba(255, 255, 255, 0.85)';
-                            }}
-                          >
-                            {suggestion}
-                          </div>
-                        ))}
+                        {autocompleteSuggestions.map((suggestion, index) => {
+                          const isParentTest = typeof suggestion === 'object' && suggestion.subtests;
+                          const displayName = typeof suggestion === 'string' ? suggestion : suggestion.name;
+                          const subtestCount = isParentTest ? suggestion.subtests.length : 0;
+
+                          return (
+                            <div
+                              key={index}
+                              onClick={() => handleSuggestionClick(suggestion)}
+                              style={{
+                                padding: '12px 16px',
+                                cursor: 'pointer',
+                                borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
+                                transition: 'all 0.2s ease',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(102, 126, 234, 0.2)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent';
+                              }}
+                            >
+                              <div style={{
+                                fontSize: '14px',
+                                color: isParentTest ? '#4ECDC4' : 'rgba(255, 255, 255, 0.85)',
+                                fontWeight: isParentTest ? 600 : 400,
+                              }}>
+                                {isParentTest && '📋 '}{displayName}
+                              </div>
+                              {isParentTest && (
+                                <div style={{
+                                  fontSize: '11px',
+                                  color: 'rgba(78, 205, 196, 0.7)',
+                                  marginTop: '4px',
+                                  fontStyle: 'italic',
+                                }}>
+                                  → Auto-adds {subtestCount} subtest{subtestCount !== 1 ? 's' : ''}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
