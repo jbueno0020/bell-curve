@@ -422,7 +422,7 @@ function BellCurveApp() {
 
     try {
       localStorage.setItem('bellcurve_profiles', JSON.stringify(updatedProfiles));
-      alert(`Profile saved successfully for ${studentName}!`);
+      alert(`Profile saved successfully!\nStudent: ${studentName}\nTests saved: ${tests.length}\nAssessment date: ${assessmentDate || 'Not set'}`);
     } catch (error) {
       console.error('Error saving profile:', error);
       alert('Error saving profile. Please try again.');
@@ -432,13 +432,17 @@ function BellCurveApp() {
   // Load a profile
   const loadProfile = (profile) => {
     setStudentName(profile.studentName);
-    setAssessmentDate(profile.assessmentDate);
-    setTests(profile.tests.map(t => ({ ...t })));
+    setAssessmentDate(profile.assessmentDate || '');
+    setTests(profile.tests ? profile.tests.map(t => ({ ...t })) : []);
     setSummaryOverride(profile.summaryOverride || '');
     setCurrentProfileId(profile.id);
-    setVisibleTestIds(new Set(profile.tests.map(t => t.id)));
+    setVisibleTestIds(new Set(profile.tests ? profile.tests.map(t => t.id) : []));
     setShowProfilesPanel(false);
     setMode('input');
+
+    // Show confirmation message
+    const testCount = profile.tests ? profile.tests.length : 0;
+    alert(`Profile loaded successfully!\nStudent: ${profile.studentName}\nTests loaded: ${testCount}`);
   };
 
   // Delete a profile
@@ -1228,15 +1232,64 @@ function BellCurveApp() {
 
           .chart-container {
             box-shadow: none !important;
-            border: 1px solid #ddd !important;
+            border: 2px solid #333 !important;
             break-inside: avoid;
             page-break-inside: avoid;
+            background: white !important;
           }
 
           .presentation-header {
             border-bottom: 2px solid #667eea;
             padding-bottom: 20px;
             margin-bottom: 30px;
+            color: #1a1a2e !important;
+          }
+
+          .presentation-header h2 {
+            color: #1a1a2e !important;
+          }
+
+          .chart-title {
+            color: #1a1a2e !important;
+          }
+
+          /* Make all text dark for print */
+          text, p, span, div {
+            color: #1a1a2e !important;
+          }
+
+          /* Ensure curve is visible */
+          path {
+            stroke: #667eea !important;
+            stroke-width: 3 !important;
+          }
+
+          /* Ensure test markers are visible */
+          circle {
+            stroke: #333 !important;
+          }
+
+          /* Legend items */
+          .legend-item {
+            color: #1a1a2e !important;
+          }
+
+          /* Info panel */
+          .info-panel {
+            background: #f8f9fa !important;
+            border: 1px solid #ddd !important;
+            color: #1a1a2e !important;
+          }
+
+          .info-panel h4, .info-panel p {
+            color: #1a1a2e !important;
+          }
+
+          /* Summary section */
+          .editable-summary {
+            background: white !important;
+            border: 1px solid #ddd !important;
+            color: #1a1a2e !important;
           }
 
           /* Ensure colors are visible in print */
@@ -2644,7 +2697,7 @@ function BellCurveApp() {
 
                 {/* Test name labels - always shown in print, toggle in screen view */}
                 {(showLabelsOnCurve || typeof window !== 'undefined') && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index, array) => {
-                  // Calculate label position - above the marker
+                  // Calculate label position - above the marker, accounting for stacking
                   const labelY = y - 35;
                   const labelX = x;
 
@@ -2660,18 +2713,26 @@ function BellCurveApp() {
                     adjustedX = labelX - 25;
                   }
 
+                  // Calculate rect width based on text length
+                  const rectWidth = test.name.length * 7 + 12;
+                  const rectX = textAnchor === 'middle'
+                    ? adjustedX - rectWidth / 2
+                    : textAnchor === 'start'
+                      ? adjustedX - 6
+                      : adjustedX - rectWidth + 6;
+
                   return (
                     <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
                       {/* Label background for better readability */}
                       <rect
-                        x={textAnchor === 'middle' ? adjustedX - test.name.length * 3.5 - 6 : textAnchor === 'start' ? adjustedX - 6 : adjustedX - test.name.length * 7 - 6}
+                        x={rectX}
                         y={labelY - 12}
-                        width={test.name.length * 7 + 12}
+                        width={rectWidth}
                         height="18"
                         rx="4"
-                        fill="rgba(26, 26, 46, 0.9)"
+                        fill="white"
                         stroke={test.color}
-                        strokeWidth="1"
+                        strokeWidth="2"
                       />
                       {/* Test name label */}
                       <text
