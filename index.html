@@ -993,10 +993,11 @@ function BellCurveApp() {
     if (!stackedPositions || stackedPositions.length === 0) return [];
 
     const labelHeight = 18; // Height of label rect
-    const minSpacing = 12; // Minimum vertical spacing between labels
+    const minSpacing = 10; // Minimum vertical spacing between labels
     const markerRadius = 18; // Radius of marker circle
-    const minLabelY = 30; // Minimum Y position for labels (top boundary)
-    const horizontalGroupThreshold = 50; // Group labels within this x distance
+    const minLabelY = Math.max(chartTopPadding - 40, 20); // Top boundary
+    const maxLabelY = chartBottomY - 16; // Keep above x-axis labels
+    const minSpacingX = 8; // Minimum horizontal spacing between labels
 
     // Calculate label dimensions and initial positions
     const labelData = stackedPositions.map(({ test, x, y }) => {
@@ -1035,79 +1036,65 @@ function BellCurveApp() {
       };
     });
 
+    const placed = [];
+
+    const getBounds = (label, centerY) => {
+      const rectX = label.textAnchor === 'middle'
+        ? label.adjustedX - label.rectWidth / 2
+        : label.textAnchor === 'start'
+          ? label.adjustedX - 6
+          : label.adjustedX - label.rectWidth + 6;
+      return {
+        left: rectX,
+        right: rectX + label.rectWidth,
+        top: centerY - label.rectHeight / 2,
+        bottom: centerY + label.rectHeight / 2,
+      };
+    };
+
+    const overlaps = (bounds) => placed.some((other) => {
+      return !(
+        bounds.right + minSpacingX < other.left ||
+        bounds.left - minSpacingX > other.right ||
+        bounds.bottom + minSpacing < other.top ||
+        bounds.top - minSpacing > other.bottom
+      );
+    });
+
     // Sort by markerX to process left to right
     labelData.sort((a, b) => a.markerX - b.markerX);
 
-    // Group labels that are horizontally close
-    const groups = [];
-    let currentGroup = [labelData[0]];
+    labelData.forEach((label) => {
+      const candidateYs = [];
+      const step = labelHeight + minSpacing;
+      const aboveStart = Math.min(label.originalLabelY, label.markerY - markerRadius - 8);
 
-    for (let i = 1; i < labelData.length; i++) {
-      const prev = labelData[i - 1];
-      const curr = labelData[i];
-
-      if (Math.abs(curr.markerX - prev.markerX) <= horizontalGroupThreshold) {
-        currentGroup.push(curr);
-      } else {
-        groups.push(currentGroup);
-        currentGroup = [curr];
+      for (let y = aboveStart; y >= minLabelY + labelHeight / 2; y -= step) {
+        candidateYs.push(y);
       }
-    }
-    groups.push(currentGroup);
 
-    // Process each group independently
-    groups.forEach(group => {
-      if (group.length === 1) return; // No collision possible
+      const belowStart = label.markerY + markerRadius + 12;
+      for (let y = belowStart; y <= maxLabelY - labelHeight / 2; y += step) {
+        candidateYs.push(y);
+      }
 
-      // Sort group by desired Y position (top to bottom)
-      group.sort((a, b) => a.originalLabelY - b.originalLabelY);
-
-      // Place labels from top to bottom, avoiding overlaps
-      for (let i = 0; i < group.length; i++) {
-        const current = group[i];
-
-        if (i === 0) {
-          // First label: keep at original position, but respect min boundary
-          current.labelY = Math.max(current.originalLabelY, minLabelY + labelHeight / 2);
-        } else {
-          // Check against all previously placed labels in this group
-          let proposedY = current.originalLabelY;
-
-          for (let j = 0; j < i; j++) {
-            const other = group[j];
-            const otherTop = other.labelY - other.rectHeight / 2;
-            const otherBottom = other.labelY + other.rectHeight / 2;
-
-            const currentTop = proposedY - current.rectHeight / 2;
-            const currentBottom = proposedY + current.rectHeight / 2;
-
-            // Check if bounding boxes overlap vertically
-            if (!(currentBottom + minSpacing <= otherTop || currentTop - minSpacing >= otherBottom)) {
-              // Collision! Push current label up above the other label
-              proposedY = otherTop - minSpacing - current.rectHeight / 2;
-            }
-          }
-
-          // Ensure label stays within top boundary
-          const minAllowedY = minLabelY + current.rectHeight / 2;
-          if (proposedY < minAllowedY) {
-            // Can't fit above, try placing below all others instead
-            let maxBottomY = minAllowedY;
-            for (let j = 0; j < i; j++) {
-              const other = group[j];
-              const otherBottom = other.labelY + other.rectHeight / 2;
-              maxBottomY = Math.max(maxBottomY, otherBottom + minSpacing + current.rectHeight / 2);
-            }
-            proposedY = maxBottomY;
-          }
-
-          // Ensure label doesn't go below marker
-          const maxAllowedY = current.markerY - markerRadius - 5;
-          proposedY = Math.min(proposedY, maxAllowedY);
-
-          current.labelY = proposedY;
+      let chosenY = Math.max(Math.min(label.originalLabelY, maxLabelY), minLabelY);
+      let placedBounds = null;
+      for (const candidateY of candidateYs) {
+        const bounds = getBounds(label, candidateY);
+        if (!overlaps(bounds)) {
+          chosenY = candidateY;
+          placedBounds = bounds;
+          placed.push(bounds);
+          break;
         }
       }
+
+      if (!placedBounds) {
+        placed.push(getBounds(label, chosenY));
+      }
+
+      label.labelY = Math.min(Math.max(chosenY, minLabelY + labelHeight / 2), maxLabelY - labelHeight / 2);
     });
 
     // Mark labels that need connectors
