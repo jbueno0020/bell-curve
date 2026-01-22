@@ -937,14 +937,14 @@ function BellCurveApp() {
     const markerRadius = 18;
     const stackGap = 8;
     const proximityThreshold = 5; // scores within 5 points are considered "close"
-    
+
     // Sort by score
     const sorted = [...visibleTests].sort((a, b) => a.score - b.score);
-    
+
     // Group tests by proximity
     const groups = [];
     let currentGroup = [];
-    
+
     sorted.forEach((test, index) => {
       if (currentGroup.length === 0) {
         currentGroup.push(test);
@@ -961,16 +961,16 @@ function BellCurveApp() {
     if (currentGroup.length > 0) {
       groups.push(currentGroup);
     }
-    
+
     // Calculate positions with stacking
     const positions = [];
-    
+
     groups.forEach(group => {
       // Find the average score position for the group
       const avgScore = group.reduce((sum, t) => sum + t.score, 0) / group.length;
       const baseX = getScoreX(avgScore);
       const baseY = getScoreY(avgScore);
-      
+
       group.forEach((test, stackIndex) => {
         const x = getScoreX(test.score);
         const y = baseY - (stackIndex * (markerRadius * 2 + stackGap));
@@ -984,8 +984,128 @@ function BellCurveApp() {
         });
       });
     });
-    
+
     return positions;
+  };
+
+  // Calculate label positions with collision avoidance
+  const getLabelPositionsWithCollisionAvoidance = (stackedPositions) => {
+    const labelHeight = 18; // Height of label rect
+    const labelPadding = 10; // Vertical spacing between labels
+    const markerRadius = 18; // Radius of marker circle
+    const minLabelY = 30; // Minimum Y position for labels (top boundary)
+    const maxLabelY = 280; // Maximum Y position (don't go below markers)
+
+    // Calculate label dimensions and initial positions
+    const labelData = stackedPositions.map(({ test, x, y }) => {
+      const rectWidth = test.name.length * 7 + 12;
+      const initialLabelY = y - 35; // Initial position above marker
+
+      // Determine text anchor based on x position
+      let textAnchor = 'middle';
+      let adjustedX = x;
+
+      if (x < 100) {
+        textAnchor = 'start';
+        adjustedX = x + 25;
+      } else if (x > 700) {
+        textAnchor = 'end';
+        adjustedX = x - 25;
+      }
+
+      const rectX = textAnchor === 'middle'
+        ? adjustedX - rectWidth / 2
+        : textAnchor === 'start'
+          ? adjustedX - 6
+          : adjustedX - rectWidth + 6;
+
+      return {
+        test,
+        markerX: x,
+        markerY: y,
+        textAnchor,
+        adjustedX,
+        rectWidth,
+        rectHeight: labelHeight,
+        rectX,
+        labelY: initialLabelY, // Will be adjusted for collisions
+        minY: minLabelY,
+        maxY: Math.min(y - markerRadius - 5, maxLabelY), // Don't overlap marker
+      };
+    });
+
+    // Sort by x position for left-to-right processing
+    labelData.sort((a, b) => a.markerX - b.markerX);
+
+    // Collision detection and avoidance
+    const positioned = [];
+
+    labelData.forEach((current, index) => {
+      let currentTop = current.labelY - current.rectHeight / 2;
+      let currentBottom = current.labelY + current.rectHeight / 2;
+      let adjusted = false;
+
+      // Check collision with all previously positioned labels
+      let maxIterations = 50; // Prevent infinite loops
+      let iterations = 0;
+
+      while (iterations < maxIterations) {
+        let hasCollision = false;
+
+        for (const prev of positioned) {
+          const prevTop = prev.labelY - prev.rectHeight / 2;
+          const prevBottom = prev.labelY + prev.rectHeight / 2;
+
+          // Check horizontal overlap (labels are close on x-axis)
+          const horizontalOverlap = Math.abs(current.markerX - prev.markerX) < 80;
+
+          if (horizontalOverlap) {
+            // Check vertical overlap with padding
+            const verticalOverlap = !(currentBottom + labelPadding < prevTop ||
+                                      currentTop - labelPadding > prevBottom);
+
+            if (verticalOverlap) {
+              // Push current label up
+              const moveUp = (prevTop - labelPadding) - currentBottom;
+              current.labelY += moveUp;
+              currentTop = current.labelY - current.rectHeight / 2;
+              currentBottom = current.labelY + current.rectHeight / 2;
+              hasCollision = true;
+              adjusted = true;
+              break; // Re-check with new position
+            }
+          }
+        }
+
+        // Check if label is within bounds
+        if (currentTop < current.minY) {
+          // If pushed too high, try moving down instead
+          current.labelY = current.minY + current.rectHeight / 2;
+          currentTop = current.labelY - current.rectHeight / 2;
+          currentBottom = current.labelY + current.rectHeight / 2;
+        }
+
+        if (currentBottom > current.maxY) {
+          // If too low, cap it
+          current.labelY = current.maxY - current.rectHeight / 2;
+          currentTop = current.labelY - current.rectHeight / 2;
+          currentBottom = current.labelY + current.rectHeight / 2;
+        }
+
+        if (!hasCollision) {
+          break; // No collision, position is good
+        }
+
+        iterations++;
+      }
+
+      positioned.push({
+        ...current,
+        needsConnector: adjusted || Math.abs(current.labelY - (current.markerY - 35)) > 5,
+      });
+    });
+
+    return positioned;
   };
 
   const computedSummary = summaryOverride.trim() ? summaryOverride : generateSummary();
@@ -2992,60 +3112,61 @@ function BellCurveApp() {
                   );
                 })}
 
-                {/* Test name labels - always shown in print, toggle in screen view */}
-                {(showLabelsOnCurve || typeof window !== 'undefined') && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index, array) => {
-                  // Calculate label position - above the marker, accounting for stacking
-                  const labelY = y - 35;
-                  const labelX = x;
+                {/* Test name labels with collision avoidance - always shown in print, toggle in screen view */}
+                {(showLabelsOnCurve || typeof window !== 'undefined') && (() => {
+                  const stackedPositions = getStackedPositions(getVisibleTests());
+                  const labelPositions = getLabelPositionsWithCollisionAvoidance(stackedPositions);
 
-                  // Determine text anchor based on position to avoid edge overflow
-                  let textAnchor = 'middle';
-                  let adjustedX = labelX;
+                  return labelPositions.map((labelInfo) => {
+                    const { test, markerX, markerY, labelY, adjustedX, textAnchor, rectX, rectWidth, rectHeight, needsConnector } = labelInfo;
 
-                  if (labelX < 100) {
-                    textAnchor = 'start';
-                    adjustedX = labelX + 25;
-                  } else if (labelX > 700) {
-                    textAnchor = 'end';
-                    adjustedX = labelX - 25;
-                  }
+                    return (
+                      <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
+                        {/* Connector line from label to marker */}
+                        {needsConnector && (
+                          <g>
+                            {/* Vertical line from label to elbow point */}
+                            <line
+                              x1={markerX}
+                              y1={labelY + rectHeight / 2 + 2}
+                              x2={markerX}
+                              y2={markerY - 18}
+                              stroke={test.color}
+                              strokeWidth="1.5"
+                              strokeDasharray="3,3"
+                              opacity="0.6"
+                            />
+                          </g>
+                        )}
 
-                  // Calculate rect width based on text length
-                  const rectWidth = test.name.length * 7 + 12;
-                  const rectX = textAnchor === 'middle'
-                    ? adjustedX - rectWidth / 2
-                    : textAnchor === 'start'
-                      ? adjustedX - 6
-                      : adjustedX - rectWidth + 6;
+                        {/* Label background for better readability */}
+                        <rect
+                          x={rectX}
+                          y={labelY - rectHeight / 2}
+                          width={rectWidth}
+                          height={rectHeight}
+                          rx="4"
+                          fill="white"
+                          stroke={test.color}
+                          strokeWidth="2"
+                        />
 
-                  return (
-                    <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
-                      {/* Label background for better readability */}
-                      <rect
-                        x={rectX}
-                        y={labelY - 12}
-                        width={rectWidth}
-                        height="18"
-                        rx="4"
-                        fill="white"
-                        stroke={test.color}
-                        strokeWidth="2"
-                      />
-                      {/* Test name label */}
-                      <text
-                        x={adjustedX}
-                        y={labelY}
-                        textAnchor={textAnchor}
-                        fill={test.color}
-                        fontSize="10"
-                        fontWeight="700"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        {test.name}
-                      </text>
-                    </g>
-                  );
-                })}
+                        {/* Test name label */}
+                        <text
+                          x={adjustedX}
+                          y={labelY + 3}
+                          textAnchor={textAnchor}
+                          fill={test.color}
+                          fontSize="10"
+                          fontWeight="700"
+                          fontFamily="Nunito, sans-serif"
+                        >
+                          {test.name}
+                        </text>
+                      </g>
+                    );
+                  });
+                })()}
               </svg>
             </div>
 
