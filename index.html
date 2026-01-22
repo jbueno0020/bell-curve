@@ -988,120 +988,86 @@ function BellCurveApp() {
     return positions;
   };
 
-  // Calculate label positions with collision avoidance
+  // Calculate label positions with collision avoidance - bubbles and labels separated
   const getLabelPositionsWithCollisionAvoidance = (stackedPositions) => {
     if (!stackedPositions || stackedPositions.length === 0) return [];
 
     const labelHeight = 18; // Height of label rect
-    const minSpacing = 10; // Minimum vertical spacing between labels
+    const labelSpacing = 12; // Vertical spacing between labels
     const markerRadius = 18; // Radius of marker circle
-    const minLabelY = Math.max(chartTopPadding - 80, 20); // Top boundary - more space for labels
-    const maxLabelY = chartBottomY - 16; // Keep above x-axis labels
-    const minSpacingX = 8; // Minimum horizontal spacing between labels
+    const bubbleLabelGap = 16; // Gap between bottom of bubble stack and first label
+    const horizontalGroupThreshold = 50; // Group bubbles within this x distance
 
-    // Calculate label dimensions and initial positions
-    const labelData = stackedPositions.map(({ test, x, y }) => {
-      const rectWidth = Math.max(test.name.length * 7 + 12, 60);
-      const initialLabelY = y - 35; // Initial position above marker
+    // Group stackedPositions by x proximity to identify bubble stacks
+    const groups = [];
+    const sortedByX = [...stackedPositions].sort((a, b) => a.x - b.x);
 
-      // Determine text anchor based on x position
-      let textAnchor = 'middle';
-      let adjustedX = x;
-
-      if (x < 100) {
-        textAnchor = 'start';
-        adjustedX = x + 25;
-      } else if (x > 700) {
-        textAnchor = 'end';
-        adjustedX = x - 25;
+    let currentGroup = [sortedByX[0]];
+    for (let i = 1; i < sortedByX.length; i++) {
+      if (Math.abs(sortedByX[i].x - currentGroup[0].x) <= horizontalGroupThreshold) {
+        currentGroup.push(sortedByX[i]);
+      } else {
+        groups.push(currentGroup);
+        currentGroup = [sortedByX[i]];
       }
+    }
+    groups.push(currentGroup);
 
-      const rectX = textAnchor === 'middle'
-        ? adjustedX - rectWidth / 2
-        : textAnchor === 'start'
-          ? adjustedX - 6
-          : adjustedX - rectWidth + 6;
+    // For each group, calculate bubble stack extent and position labels below
+    const labelData = [];
 
-      return {
-        test,
-        markerX: x,
-        markerY: y,
-        textAnchor,
-        adjustedX,
-        rectWidth,
-        rectHeight: labelHeight,
-        rectX,
-        labelY: initialLabelY,
-        originalLabelY: initialLabelY,
-      };
-    });
+    groups.forEach(group => {
+      // Find the lowest bubble in this group (highest y value, since y increases downward)
+      const lowestBubbleY = Math.max(...group.map(item => item.y));
+      const bubbleStackBottom = lowestBubbleY + markerRadius;
 
-    const placed = [];
+      // Labels start below the bubble stack
+      let currentLabelY = bubbleStackBottom + bubbleLabelGap + labelHeight / 2;
 
-    const getBounds = (label, centerY) => {
-      const rectX = label.textAnchor === 'middle'
-        ? label.adjustedX - label.rectWidth / 2
-        : label.textAnchor === 'start'
-          ? label.adjustedX - 6
-          : label.adjustedX - label.rectWidth + 6;
-      return {
-        left: rectX,
-        right: rectX + label.rectWidth,
-        top: centerY - label.rectHeight / 2,
-        bottom: centerY + label.rectHeight / 2,
-      };
-    };
+      // Sort group by y-position (top to bottom) to maintain visual order
+      const sortedGroup = [...group].sort((a, b) => a.y - b.y);
 
-    const overlaps = (bounds) => placed.some((other) => {
-      return !(
-        bounds.right + minSpacingX < other.left ||
-        bounds.left - minSpacingX > other.right ||
-        bounds.bottom + minSpacing < other.top ||
-        bounds.top - minSpacing > other.bottom
-      );
-    });
+      sortedGroup.forEach((item) => {
+        const { test, x, y } = item;
+        const rectWidth = Math.max(test.name.length * 7 + 12, 60);
 
-    // Sort by markerX to process left to right
-    labelData.sort((a, b) => a.markerX - b.markerX);
+        // Determine text anchor based on x position
+        let textAnchor = 'middle';
+        let adjustedX = x;
 
-    labelData.forEach((label) => {
-      const candidateYs = [];
-      const step = labelHeight + minSpacing;
-      const aboveStart = Math.min(label.originalLabelY, label.markerY - markerRadius - 8);
-
-      for (let y = aboveStart; y >= minLabelY + labelHeight / 2; y -= step) {
-        candidateYs.push(y);
-      }
-
-      const belowStart = label.markerY + markerRadius + 12;
-      for (let y = belowStart; y <= maxLabelY - labelHeight / 2; y += step) {
-        candidateYs.push(y);
-      }
-
-      let chosenY = Math.max(Math.min(label.originalLabelY, maxLabelY), minLabelY);
-      let placedBounds = null;
-      for (const candidateY of candidateYs) {
-        const bounds = getBounds(label, candidateY);
-        if (!overlaps(bounds)) {
-          chosenY = candidateY;
-          placedBounds = bounds;
-          placed.push(bounds);
-          break;
+        if (x < 100) {
+          textAnchor = 'start';
+          adjustedX = x + 25;
+        } else if (x > 700) {
+          textAnchor = 'end';
+          adjustedX = x - 25;
         }
-      }
 
-      if (!placedBounds) {
-        placed.push(getBounds(label, chosenY));
-      }
+        const rectX = textAnchor === 'middle'
+          ? adjustedX - rectWidth / 2
+          : textAnchor === 'start'
+            ? adjustedX - 6
+            : adjustedX - rectWidth + 6;
 
-      label.labelY = Math.min(Math.max(chosenY, minLabelY + labelHeight / 2), maxLabelY - labelHeight / 2);
+        labelData.push({
+          test,
+          markerX: x,
+          markerY: y,
+          textAnchor,
+          adjustedX,
+          rectWidth,
+          rectHeight: labelHeight,
+          rectX,
+          labelY: currentLabelY,
+          needsConnector: true, // Always show connector since labels are below bubbles
+        });
+
+        // Move to next label position
+        currentLabelY += labelHeight + labelSpacing;
+      });
     });
 
-    // Mark labels that need connectors
-    return labelData.map(label => ({
-      ...label,
-      needsConnector: Math.abs(label.labelY - label.originalLabelY) > 3,
-    }));
+    return labelData;
   };
 
   const computedSummary = summaryOverride.trim() ? summaryOverride : generateSummary();
@@ -3166,15 +3132,15 @@ function BellCurveApp() {
 
                     return (
                       <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
-                        {/* Connector line from label to marker */}
+                        {/* Connector line from bubble to label */}
                         {needsConnector && (
                           <g>
-                            {/* Vertical line from label to elbow point */}
+                            {/* Vertical line from bottom of bubble to top of label */}
                             <line
                               x1={markerX}
-                              y1={labelY + rectHeight / 2 + 2}
+                              y1={markerY + 18}
                               x2={markerX}
-                              y2={markerY - 18}
+                              y2={labelY - rectHeight / 2 - 2}
                               stroke={test.color}
                               strokeWidth="1.5"
                               strokeDasharray="3,3"
