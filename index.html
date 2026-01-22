@@ -766,9 +766,9 @@ function BellCurveApp() {
     setVisibleTestIds(new Set());
   };
 
-  // Chart dimensions with proper padding for the curve peak
-  const chartTopPadding = 80;
-  const chartBottomY = 300;
+  // Chart dimensions with proper padding for the curve peak and tooltips
+  const chartTopPadding = 120; // Increased from 80 to accommodate tooltips/labels
+  const chartBottomY = 340; // Increased proportionally to maintain curve shape
 
   // Generate bell curve path
   const generateBellCurve = () => {
@@ -995,7 +995,7 @@ function BellCurveApp() {
     const labelHeight = 18; // Height of label rect
     const minSpacing = 10; // Minimum vertical spacing between labels
     const markerRadius = 18; // Radius of marker circle
-    const minLabelY = Math.max(chartTopPadding - 40, 20); // Top boundary
+    const minLabelY = Math.max(chartTopPadding - 80, 20); // Top boundary - more space for labels
     const maxLabelY = chartBottomY - 16; // Keep above x-axis labels
     const minSpacingX = 8; // Minimum horizontal spacing between labels
 
@@ -1596,46 +1596,90 @@ function BellCurveApp() {
           font-size: 12px;
           color: #666;
         }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+          .mode-btn {
+            padding: 12px 24px;
+            font-size: 13px;
+          }
+        }
+
+        @media (max-width: 768px) {
+          .mode-btn {
+            padding: 10px 18px;
+            font-size: 12px;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .mode-btn {
+            padding: 8px 14px;
+            font-size: 11px;
+          }
+        }
       `}</style>
 
       {/* Header */}
       <div style={{
-        padding: '30px 40px',
+        padding: '24px 40px',
         borderBottom: `1px solid ${themeColors.cardBorder}`,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         background: theme === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.8)',
         backdropFilter: 'blur(20px)',
+        minHeight: '90px',
+        gap: '20px',
+        flexWrap: 'wrap',
       }}>
-        <div>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          minWidth: '280px',
+          flex: '0 1 auto',
+        }}>
           <h1 style={{
             fontFamily: "'Playfair Display', serif",
-            fontSize: '32px',
+            fontSize: '28px',
             fontWeight: 700,
             margin: 0,
+            lineHeight: 1.2,
             background: theme === 'light'
               ? 'linear-gradient(135deg, #1a1a2e 0%, #667eea 100%)'
               : 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             letterSpacing: '-0.5px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            maxWidth: '100%',
           }}>
             Score Distribution Visualizer
           </h1>
           <p style={{
-            margin: '8px 0 0 0',
+            margin: '6px 0 0 0',
             color: themeColors.textMuted,
-            fontSize: '14px',
+            fontSize: '12px',
             fontWeight: 600,
-            letterSpacing: '2px',
+            letterSpacing: '1.5px',
             textTransform: 'uppercase',
+            lineHeight: 1.4,
           }}>
             Bell Curve Analysis Tool
           </p>
         </div>
-        
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+
+        <div style={{
+          display: 'flex',
+          gap: '10px',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          justifyContent: 'flex-end',
+          flex: '1 1 auto',
+        }}>
           <button
             className="mode-btn inactive no-print"
             onClick={() => setShowHelpPanel(true)}
@@ -2620,7 +2664,7 @@ function BellCurveApp() {
                   📈 Live Preview
                 </h3>
                 
-                <svg viewBox="0 0 800 380" style={{ width: '100%', height: 'auto' }}>
+                <svg viewBox="0 0 800 420" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
                   {/* Grid lines */}
                   {[55, 70, 85, 100, 115, 130, 145].map((score) => (
                     <line
@@ -2662,7 +2706,7 @@ function BellCurveApp() {
                     <g key={score}>
                       <text
                         x={getScoreX(score)}
-                        y="330"
+                        y="370"
                         textAnchor="middle"
                         fill={themeColors.chartText}
                         fontSize="12"
@@ -2673,7 +2717,7 @@ function BellCurveApp() {
                       </text>
                       <text
                         x={getScoreX(score)}
-                        y="350"
+                        y="390"
                         textAnchor="middle"
                         fill={themeColors.textMuted}
                         fontSize="9"
@@ -2687,7 +2731,7 @@ function BellCurveApp() {
                   {/* Average range label */}
                   <text
                     x={getScoreX(100)}
-                    y="370"
+                    y="410"
                     textAnchor="middle"
                     fill={themeColors.textMuted}
                     fontSize="10"
@@ -2888,7 +2932,7 @@ function BellCurveApp() {
                 </button>
               </div>
               
-              <svg viewBox="0 0 800 440" style={{ width: '100%', height: 'auto' }}>
+              <svg viewBox="0 0 800 480" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
                 {/* Grid lines */}
                 {[55, 70, 85, 100, 115, 130, 145].map((score) => (
                   <line
@@ -2940,7 +2984,7 @@ function BellCurveApp() {
                   <g key={score}>
                     <text
                       x={getScoreX(score)}
-                      y="330"
+                      y="370"
                       textAnchor="middle"
                       fill={themeColors.text}
                       fontSize="14"
@@ -2951,7 +2995,7 @@ function BellCurveApp() {
                     </text>
                     <text
                       x={getScoreX(score)}
-                      y="350"
+                      y="390"
                       textAnchor="middle"
                       fill={themeColors.textSecondary}
                       fontSize="11"
@@ -2961,7 +3005,7 @@ function BellCurveApp() {
                     </text>
                     <text
                       x={getScoreX(score)}
-                      y="365"
+                      y="405"
                       textAnchor="middle"
                       fill={themeColors.textMuted}
                       fontSize="9"
@@ -2976,7 +3020,7 @@ function BellCurveApp() {
                 {/* Average range indicator */}
                 <text
                   x={getScoreX(100)}
-                  y="390"
+                  y="430"
                   textAnchor="middle"
                   fill={themeColors.textSecondary}
                   fontSize="12"
