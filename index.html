@@ -2078,17 +2078,17 @@ function BellCurveApp() {
             <div>
               {/* Student Info */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 padding: '28px',
                 marginBottom: '28px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${themeColors.cardBorder}`,
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
@@ -2101,14 +2101,14 @@ function BellCurveApp() {
                     value={studentName}
                     onChange={(e) => setStudentName(e.target.value)}
                     className="input-field"
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
                   />
                   <input
                     type="date"
                     value={assessmentDate}
                     onChange={(e) => setAssessmentDate(e.target.value)}
                     className="input-field"
-                    style={{ width: '180px' }}
+                    style={{ width: '180px', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
                   />
                 </div>
                 <button
@@ -2138,23 +2138,23 @@ function BellCurveApp() {
 
               {/* Add Test */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 padding: '28px',
                 marginBottom: '28px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${themeColors.cardBorder}`,
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
                   ➕ Add Test Score
                 </h3>
-                
+
                 <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
                   <div style={{ flex: 2, position: 'relative' }} ref={autocompleteRef}>
                     <input
@@ -2163,7 +2163,7 @@ function BellCurveApp() {
                       value={newTest.name}
                       onChange={handleTestNameChange}
                       className="input-field"
-                      style={{ width: '100%' }}
+                      style={{ width: '100%', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
                     />
                     {showAutocomplete && autocompleteSuggestions.length > 0 && (
                       <div style={{
@@ -2171,8 +2171,8 @@ function BellCurveApp() {
                         top: '100%',
                         left: 0,
                         right: 0,
-                        background: '#1a1a2e',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        background: theme === 'light' ? '#ffffff' : '#1a1a2e',
+                        border: `1px solid ${themeColors.cardBorder}`,
                         borderRadius: '12px',
                         marginTop: '4px',
                         maxHeight: '300px',
@@ -2192,11 +2192,11 @@ function BellCurveApp() {
                               style={{
                                 padding: '12px 16px',
                                 cursor: 'pointer',
-                                borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
+                                borderBottom: index < autocompleteSuggestions.length - 1 ? `1px solid ${themeColors.cardBorder}` : 'none',
                                 transition: 'all 0.2s ease',
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(102, 126, 234, 0.2)';
+                                e.currentTarget.style.background = theme === 'light' ? 'rgba(102, 126, 234, 0.1)' : 'rgba(102, 126, 234, 0.2)';
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.background = 'transparent';
@@ -2204,7 +2204,7 @@ function BellCurveApp() {
                             >
                               <div style={{
                                 fontSize: '14px',
-                                color: isParentTest ? '#4ECDC4' : 'rgba(255, 255, 255, 0.85)',
+                                color: isParentTest ? '#4ECDC4' : themeColors.text,
                                 fontWeight: isParentTest ? 600 : 400,
                               }}>
                                 {isParentTest && '📋 '}{displayName}
@@ -2212,7 +2212,7 @@ function BellCurveApp() {
                               {isParentTest && (
                                 <div style={{
                                   fontSize: '11px',
-                                  color: 'rgba(78, 205, 196, 0.7)',
+                                  color: theme === 'light' ? 'rgba(78, 205, 196, 0.8)' : 'rgba(78, 205, 196, 0.7)',
                                   marginTop: '4px',
                                   fontStyle: 'italic',
                                 }}>
@@ -2231,7 +2231,7 @@ function BellCurveApp() {
                     value={newTest.score}
                     onChange={(e) => setNewTest({ ...newTest, score: e.target.value })}
                     className="input-field"
-                    style={{ flex: 1 }}
+                    style={{ flex: 1, background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
                     min="40"
                     max="160"
                   />
@@ -2243,7 +2243,7 @@ function BellCurveApp() {
                     marginBottom: '12px',
                     fontSize: '13px',
                     fontWeight: 600,
-                    color: 'rgba(255, 255, 255, 0.6)',
+                    color: themeColors.textSecondary,
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
                   }}>
@@ -2288,27 +2288,27 @@ function BellCurveApp() {
 
               {/* Test List */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 padding: '28px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${themeColors.cardBorder}`,
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
                   📝 Added Tests ({tests.length})
                 </h3>
-                
+
                 {tests.length === 0 ? (
                   <div style={{
                     textAlign: 'center',
                     padding: '40px',
-                    color: 'rgba(255, 255, 255, 0.4)',
+                    color: themeColors.textMuted,
                     fontSize: '15px',
                   }}>
                     No tests added yet. Add your first test above!
@@ -2319,7 +2319,7 @@ function BellCurveApp() {
                       const isEditing = editingTestId === test.id;
 
                       return (
-                        <div key={test.id} className="test-card">
+                        <div key={test.id} className="test-card" style={{ background: themeColors.cardBg, border: `1px solid ${themeColors.cardBorder}` }}>
                           {isEditing ? (
                             <>
                               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -2329,7 +2329,7 @@ function BellCurveApp() {
                                   onChange={(e) => setEditingTest({ ...editingTest, name: e.target.value })}
                                   className="input-field"
                                   placeholder="Test name"
-                                  style={{ fontSize: '14px' }}
+                                  style={{ fontSize: '14px', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
                                 />
                                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                                   <input
@@ -2340,7 +2340,7 @@ function BellCurveApp() {
                                     placeholder="Score"
                                     min="40"
                                     max="160"
-                                    style={{ flex: 1, fontSize: '14px' }}
+                                    style={{ flex: 1, fontSize: '14px', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
                                   />
                                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                     {PRESET_COLORS.map((color) => (
@@ -2391,12 +2391,12 @@ function BellCurveApp() {
                                 }}
                               />
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px' }}>
+                                <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px', color: themeColors.text }}>
                                   {test.name}
                                 </div>
                                 <div style={{
                                   fontSize: '13px',
-                                  color: 'rgba(255, 255, 255, 0.5)',
+                                  color: themeColors.textMuted,
                                 }}>
                                   Score: {test.score} ({formatPercentile(getPercentileRank(test.score))} %ile) • {getScoreDescription(test.score)}
                                 </div>
