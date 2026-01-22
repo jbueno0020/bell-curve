@@ -357,6 +357,42 @@ function BellCurveApp() {
   const [editingTestId, setEditingTestId] = React.useState(null);
   const [editingTest, setEditingTest] = React.useState(null);
 
+  // Theme and customization state
+  const [theme, setTheme] = React.useState('dark'); // 'light' or 'dark'
+  const [bellCurveColor, setBellCurveColor] = React.useState('#667eea');
+  const [showThemePanel, setShowThemePanel] = React.useState(false);
+
+  // Theme colors based on current theme
+  const themeColors = React.useMemo(() => {
+    if (theme === 'light') {
+      return {
+        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
+        cardBg: 'rgba(255, 255, 255, 0.9)',
+        cardBorder: 'rgba(0, 0, 0, 0.1)',
+        text: '#1a1a2e',
+        textSecondary: 'rgba(26, 26, 46, 0.7)',
+        textMuted: 'rgba(26, 26, 46, 0.5)',
+        inputBg: 'rgba(255, 255, 255, 0.95)',
+        inputBorder: 'rgba(0, 0, 0, 0.2)',
+        chartBg: '#ffffff',
+        panelBg: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
+      };
+    } else {
+      return {
+        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+        cardBg: 'rgba(255, 255, 255, 0.04)',
+        cardBorder: 'rgba(255, 255, 255, 0.08)',
+        text: '#f8f9fa',
+        textSecondary: 'rgba(255, 255, 255, 0.85)',
+        textMuted: 'rgba(255, 255, 255, 0.5)',
+        inputBg: 'rgba(255, 255, 255, 0.05)',
+        inputBorder: 'rgba(255, 255, 255, 0.1)',
+        chartBg: 'rgba(255, 255, 255, 0.02)',
+        panelBg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+      };
+    }
+  }, [theme]);
+
   // Load branding and profiles from localStorage on mount
   React.useEffect(() => {
     try {
@@ -368,6 +404,16 @@ function BellCurveApp() {
       const profiles = localStorage.getItem('bellcurve_profiles');
       if (profiles) {
         setSavedProfiles(JSON.parse(profiles));
+      }
+
+      const savedTheme = localStorage.getItem('bellcurve_theme');
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+
+      const savedCurveColor = localStorage.getItem('bellcurve_curvecolor');
+      if (savedCurveColor) {
+        setBellCurveColor(savedCurveColor);
       }
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
@@ -382,6 +428,16 @@ function BellCurveApp() {
       console.error('Error saving branding:', error);
     }
   }, [branding]);
+
+  // Save theme preferences to localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('bellcurve_theme', theme);
+      localStorage.setItem('bellcurve_curvecolor', bellCurveColor);
+    } catch (error) {
+      console.error('Error saving theme:', error);
+    }
+  }, [theme, bellCurveColor]);
 
   React.useEffect(() => {
     const handleAfterPrint = () => {
@@ -921,9 +977,9 @@ function BellCurveApp() {
         minHeight: '100vh',
         background: isPrintPreview
           ? '#ffffff'
-          : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+          : themeColors.background,
         fontFamily: "'Nunito', 'Segoe UI', sans-serif",
-        color: isPrintPreview ? '#1a1a2e' : '#f8f9fa',
+        color: isPrintPreview ? '#1a1a2e' : themeColors.text,
         padding: '0',
       }}
     >
@@ -1258,9 +1314,8 @@ function BellCurveApp() {
             color: #1a1a2e !important;
           }
 
-          /* Ensure curve is visible */
-          path {
-            stroke: #667eea !important;
+          /* Ensure curve is visible - uses custom color from state */
+          svg path[d*="M"] {
             stroke-width: 3 !important;
           }
 
@@ -1414,6 +1469,13 @@ function BellCurveApp() {
             title="Configure school branding"
           >
             🎨 Branding
+          </button>
+          <button
+            className="mode-btn inactive no-print"
+            onClick={() => setShowThemePanel(true)}
+            title="Customize theme and colors"
+          >
+            🌓 Theme
           </button>
           <button
             className="mode-btn inactive no-print"
@@ -1603,6 +1665,179 @@ function BellCurveApp() {
               <button
                 className="control-btn"
                 onClick={() => setShowBrandingPanel(false)}
+                style={{ padding: '14px 28px' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Theme Customization Panel */}
+      {showThemePanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: themeColors.panelBg,
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '600px',
+            width: '100%',
+            border: `1px solid ${themeColors.cardBorder}`,
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          }}>
+            <h2 style={{
+              margin: '0 0 30px 0',
+              fontSize: '28px',
+              fontWeight: 700,
+              color: themeColors.text,
+            }}>
+              🌓 Theme Customization
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              {/* Theme Mode Selection */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '16px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: themeColors.textSecondary,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                }}>
+                  Display Mode
+                </label>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                  <button
+                    className={theme === 'dark' ? 'add-btn' : 'control-btn'}
+                    onClick={() => setTheme('dark')}
+                    style={{ flex: 1, padding: '16px' }}
+                  >
+                    🌙 Dark Mode
+                  </button>
+                  <button
+                    className={theme === 'light' ? 'add-btn' : 'control-btn'}
+                    onClick={() => setTheme('light')}
+                    style={{ flex: 1, padding: '16px' }}
+                  >
+                    ☀️ Light Mode
+                  </button>
+                </div>
+                <p style={{
+                  marginTop: '12px',
+                  fontSize: '13px',
+                  color: themeColors.textMuted,
+                  lineHeight: '1.6',
+                }}>
+                  Choose between dark and light interface themes
+                </p>
+              </div>
+
+              {/* Bell Curve Color Selection */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '16px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: themeColors.textSecondary,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                }}>
+                  Bell Curve Color
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
+                  {['#667eea', '#4ECDC4', '#FF6B6B', '#9B7EDE', '#00B894', '#E17055', '#FFE66D', '#FD79A8', '#74B9FF', '#764ba2'].map((color) => (
+                    <div
+                      key={color}
+                      style={{
+                        width: '100%',
+                        aspectRatio: '1',
+                        borderRadius: '12px',
+                        backgroundColor: color,
+                        cursor: 'pointer',
+                        border: bellCurveColor === color ? '4px solid ' + themeColors.text : '2px solid ' + themeColors.cardBorder,
+                        transition: 'all 0.2s ease',
+                        boxShadow: bellCurveColor === color ? `0 4px 12px ${color}66` : 'none',
+                      }}
+                      onClick={() => setBellCurveColor(color)}
+                      title={color}
+                    />
+                  ))}
+                </div>
+                <p style={{
+                  marginTop: '12px',
+                  fontSize: '13px',
+                  color: themeColors.textMuted,
+                  lineHeight: '1.6',
+                }}>
+                  Customize the color of the bell curve visualization
+                </p>
+              </div>
+
+              {/* Preview */}
+              <div style={{
+                background: themeColors.cardBg,
+                border: `1px solid ${themeColors.cardBorder}`,
+                borderRadius: '16px',
+                padding: '20px',
+              }}>
+                <p style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: themeColors.textSecondary,
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                }}>
+                  Preview
+                </p>
+                <div style={{
+                  background: theme === 'light' ? '#ffffff' : '#1a1a2e',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <div style={{
+                    width: '60px',
+                    height: '60px',
+                    borderRadius: '50%',
+                    background: `linear-gradient(135deg, ${bellCurveColor} 0%, ${bellCurveColor}99 100%)`,
+                    boxShadow: `0 4px 20px ${bellCurveColor}40`,
+                  }} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
+              <button
+                className="add-btn"
+                onClick={() => setShowThemePanel(false)}
+                style={{ flex: 1 }}
+              >
+                Save & Close
+              </button>
+              <button
+                className="control-btn"
+                onClick={() => setShowThemePanel(false)}
                 style={{ padding: '14px 28px' }}
               >
                 Cancel
@@ -2228,7 +2463,7 @@ function BellCurveApp() {
                   {/* Bell curve */}
                   <path
                     d={bellPath}
-                    fill="rgba(102, 126, 234, 0.15)"
+                    fill={`${bellCurveColor}26`}
                     stroke="url(#curveGradient)"
                     strokeWidth="3"
                   />
@@ -2236,9 +2471,9 @@ function BellCurveApp() {
                   {/* Gradient definition */}
                   <defs>
                     <linearGradient id="curveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#667eea" />
-                      <stop offset="50%" stopColor="#764ba2" />
-                      <stop offset="100%" stopColor="#667eea" />
+                      <stop offset="0%" stopColor={bellCurveColor} />
+                      <stop offset="50%" stopColor={bellCurveColor} stopOpacity="0.7" />
+                      <stop offset="100%" stopColor={bellCurveColor} />
                     </linearGradient>
                   </defs>
 
