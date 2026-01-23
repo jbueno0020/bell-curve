@@ -381,6 +381,7 @@ function BellCurveApp() {
         cardBg: '#ffffff',
         cardBgAlt: 'rgba(248, 249, 250, 0.95)',
         cardBorder: 'rgba(0, 0, 0, 0.15)',
+        labelMaskBg: '#ffffff',
         text: '#1a1a2e',
         textSecondary: '#495057',
         textMuted: '#6c757d',
@@ -404,6 +405,7 @@ function BellCurveApp() {
         cardBg: 'rgba(255, 255, 255, 0.04)',
         cardBgAlt: 'rgba(255, 255, 255, 0.06)',
         cardBorder: 'rgba(255, 255, 255, 0.08)',
+        labelMaskBg: '#1a1a2e',
         text: '#f8f9fa',
         textSecondary: 'rgba(255, 255, 255, 0.85)',
         textMuted: 'rgba(255, 255, 255, 0.5)',
@@ -3436,6 +3438,7 @@ function BellCurveApp() {
                     const finalRectHeight = labelStyles.fontSize + labelStyles.padding * 2;
 
                     const maskPadding = 2;
+                    const labelMaskFill = themeColors.labelMaskBg;
 
                     return (
                       <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
