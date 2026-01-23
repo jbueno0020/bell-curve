@@ -3501,6 +3501,90 @@ function BellCurveApp() {
                     </g>
                   );
                 })}
+
+                {/* Test name labels with collision avoidance - always shown in print, toggle in screen view */}
+                {(showLabelsOnCurve || typeof window !== 'undefined') && (() => {
+                  const stackedPositions = getStackedPositions(getVisibleTests());
+                  const labelPositionsData = getLabelPositionsWithCollisionAvoidance(stackedPositions);
+
+                  return labelPositionsData.map((labelInfo) => {
+                    const { test, markerX, markerY, labelY, adjustedX, textAnchor, rectX, rectWidth, rectHeight, needsConnector } = labelInfo;
+
+                    // Apply custom position offset if exists
+                    const customPos = labelPositions[test.id];
+                    const finalLabelY = customPos ? labelY + customPos.y : labelY;
+                    const finalAdjustedX = customPos ? adjustedX + customPos.x : adjustedX;
+                    const finalRectX = customPos ? rectX + customPos.x : rectX;
+
+                    // Recalculate rect dimensions based on custom styles
+                    const textLength = test.name.length * (labelStyles.fontSize * 0.6);
+                    const finalRectWidth = Math.min(textLength + labelStyles.padding * 2, labelStyles.maxWidth);
+                    const finalRectHeight = labelStyles.fontSize + labelStyles.padding * 2;
+
+                    const maskPadding = 2;
+                    const labelMaskFill = themeColors.labelMaskBg;
+
+                    return (
+                      <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
+                        {/* Connector line from bubble to label */}
+                        {needsConnector && (
+                          <g>
+                            {/* Vertical line from bottom of bubble to top of label */}
+                            <line
+                              x1={markerX}
+                              y1={markerY + 18}
+                              x2={customPos ? markerX + customPos.x : markerX}
+                              y2={finalLabelY - finalRectHeight / 2 - 2}
+                              stroke={test.color}
+                              strokeWidth="1.5"
+                              strokeDasharray="3,3"
+                              opacity="0.6"
+                            />
+                          </g>
+                        )}
+
+                        {/* Mask behind label to block dotted score lines */}
+                        <rect
+                          x={finalRectX - maskPadding}
+                          y={finalLabelY - finalRectHeight / 2 - maskPadding}
+                          width={finalRectWidth + maskPadding * 2}
+                          height={finalRectHeight + maskPadding * 2}
+                          rx={labelStyles.borderRadius + maskPadding}
+                          fill={themeColors.cardBg}
+                        />
+
+                        {/* Label background for better readability */}
+                        <rect
+                          x={finalRectX}
+                          y={finalLabelY - finalRectHeight / 2}
+                          width={finalRectWidth}
+                          height={finalRectHeight}
+                          rx={labelStyles.borderRadius}
+                          fill={themeColors.cardBg}
+                          stroke={test.color}
+                          strokeWidth="2"
+                          style={{ cursor: 'grab' }}
+                          onMouseDown={(e) => handleLabelDragStart(e, test.id, finalRectX, finalLabelY)}
+                          onTouchStart={(e) => handleLabelDragStart(e, test.id, finalRectX, finalLabelY)}
+                        />
+
+                        {/* Test name label */}
+                        <text
+                          x={finalAdjustedX}
+                          y={finalLabelY + labelStyles.fontSize / 3}
+                          textAnchor={textAnchor}
+                          fill={test.color}
+                          fontSize={labelStyles.fontSize}
+                          fontWeight="700"
+                          fontFamily="Nunito, sans-serif"
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}
+                        >
+                          {test.name}
+                        </text>
+                      </g>
+                    );
+                  });
+                })()}
               </svg>
             </div>
 
