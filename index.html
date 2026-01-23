@@ -362,6 +362,17 @@ function BellCurveApp() {
   const [bellCurveColor, setBellCurveColor] = React.useState('#667eea');
   const [showThemePanel, setShowThemePanel] = React.useState(false);
 
+  // Label customization state
+  const [labelStyles, setLabelStyles] = React.useState({
+    borderRadius: 4,
+    padding: 6,
+    maxWidth: 200,
+    fontSize: 10,
+  });
+  const [labelPositions, setLabelPositions] = React.useState({}); // { testId: { x: offsetX, y: offsetY } }
+  const [showLabelsPanel, setShowLabelsPanel] = React.useState(false);
+  const [draggedLabel, setDraggedLabel] = React.useState(null);
+
   // Theme colors based on current theme
   const themeColors = React.useMemo(() => {
     if (theme === 'light') {
@@ -435,6 +446,16 @@ function BellCurveApp() {
       if (savedCurveColor) {
         setBellCurveColor(savedCurveColor);
       }
+
+      const savedLabelStyles = localStorage.getItem('bellcurve_labelstyles');
+      if (savedLabelStyles) {
+        setLabelStyles(JSON.parse(savedLabelStyles));
+      }
+
+      const savedLabelPositions = localStorage.getItem('bellcurve_labelpositions');
+      if (savedLabelPositions) {
+        setLabelPositions(JSON.parse(savedLabelPositions));
+      }
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
     }
@@ -458,6 +479,16 @@ function BellCurveApp() {
       console.error('Error saving theme:', error);
     }
   }, [theme, bellCurveColor]);
+
+  // Save label customization to localStorage
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('bellcurve_labelstyles', JSON.stringify(labelStyles));
+      localStorage.setItem('bellcurve_labelpositions', JSON.stringify(labelPositions));
+    } catch (error) {
+      console.error('Error saving label settings:', error);
+    }
+  }, [labelStyles, labelPositions]);
 
   React.useEffect(() => {
     const handleAfterPrint = () => {
@@ -577,6 +608,62 @@ function BellCurveApp() {
       window.print();
     }, 100);
   };
+
+  // Label drag handlers
+  const handleLabelDragStart = (e, testId, startX, startY) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+
+    setDraggedLabel({
+      testId,
+      startX: clientX,
+      startY: clientY,
+      initialOffsetX: labelPositions[testId]?.x || 0,
+      initialOffsetY: labelPositions[testId]?.y || 0,
+    });
+  };
+
+  // Handle drag move and end via useEffect
+  React.useEffect(() => {
+    if (!draggedLabel) return;
+
+    const handleMove = (e) => {
+      e.preventDefault();
+      const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+      const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+
+      const deltaX = clientX - draggedLabel.startX;
+      const deltaY = clientY - draggedLabel.startY;
+
+      // Update label position with normalized coordinates
+      setLabelPositions(prev => ({
+        ...prev,
+        [draggedLabel.testId]: {
+          x: draggedLabel.initialOffsetX + deltaX,
+          y: draggedLabel.initialOffsetY + deltaY,
+        },
+      }));
+    };
+
+    const handleEnd = () => {
+      setDraggedLabel(null);
+    };
+
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleEnd);
+    document.addEventListener('touchmove', handleMove);
+    document.addEventListener('touchend', handleEnd);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleEnd);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('touchend', handleEnd);
+    };
+  }, [draggedLabel]);
 
   const handleExportProfiles = () => {
     if (savedProfiles.length === 0) {
@@ -1593,7 +1680,7 @@ function BellCurveApp() {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: theme === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.8)',
+        background: theme === 'dark' ? 'rgba(0, 0, 0, 0.2)' : themeColors.cardBgAlt,
         backdropFilter: 'blur(20px)',
         minHeight: '90px',
         gap: '20px',
@@ -1673,6 +1760,13 @@ function BellCurveApp() {
             title="Manage student profiles"
           >
             📁 Profiles
+          </button>
+          <button
+            className="mode-btn inactive no-print"
+            onClick={() => setShowLabelsPanel(true)}
+            title="Customize label styles and positions"
+          >
+            🏷️ Labels
           </button>
           <button
             className={`mode-btn ${mode === 'input' ? 'active' : 'inactive'} no-print`}
@@ -1855,6 +1949,208 @@ function BellCurveApp() {
               <button
                 className="control-btn"
                 onClick={() => setShowBrandingPanel(false)}
+                style={{ padding: '14px 28px' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Labels Customization Panel */}
+      {showLabelsPanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: themeColors.panelBg,
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '600px',
+            width: '100%',
+            border: `1px solid ${themeColors.cardBorder}`,
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          }}>
+            <h2 style={{
+              margin: '0 0 30px 0',
+              fontSize: '28px',
+              fontWeight: 700,
+              color: themeColors.heading,
+            }}>
+              🏷️ Label Customization
+            </h2>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              {/* Border Radius */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: themeColors.textSecondary,
+                }}>
+                  Border Radius: {labelStyles.borderRadius}px
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="16"
+                  step="1"
+                  value={labelStyles.borderRadius}
+                  onChange={(e) => setLabelStyles({ ...labelStyles, borderRadius: parseInt(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    height: '8px',
+                    borderRadius: '4px',
+                    background: themeColors.inputBg,
+                    cursor: 'pointer',
+                  }}
+                />
+              </div>
+
+              {/* Padding */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: themeColors.textSecondary,
+                }}>
+                  Padding: {labelStyles.padding}px
+                </label>
+                <input
+                  type="range"
+                  min="4"
+                  max="16"
+                  step="1"
+                  value={labelStyles.padding}
+                  onChange={(e) => setLabelStyles({ ...labelStyles, padding: parseInt(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    height: '8px',
+                    borderRadius: '4px',
+                    background: themeColors.inputBg,
+                    cursor: 'pointer',
+                  }}
+                />
+              </div>
+
+              {/* Max Width */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: themeColors.textSecondary,
+                }}>
+                  Max Width: {labelStyles.maxWidth}px
+                </label>
+                <input
+                  type="range"
+                  min="100"
+                  max="400"
+                  step="10"
+                  value={labelStyles.maxWidth}
+                  onChange={(e) => setLabelStyles({ ...labelStyles, maxWidth: parseInt(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    height: '8px',
+                    borderRadius: '4px',
+                    background: themeColors.inputBg,
+                    cursor: 'pointer',
+                  }}
+                />
+              </div>
+
+              {/* Font Size */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: themeColors.textSecondary,
+                }}>
+                  Font Size: {labelStyles.fontSize}px
+                </label>
+                <input
+                  type="range"
+                  min="8"
+                  max="14"
+                  step="1"
+                  value={labelStyles.fontSize}
+                  onChange={(e) => setLabelStyles({ ...labelStyles, fontSize: parseInt(e.target.value) })}
+                  style={{
+                    width: '100%',
+                    height: '8px',
+                    borderRadius: '4px',
+                    background: themeColors.inputBg,
+                    cursor: 'pointer',
+                  }}
+                />
+              </div>
+
+              {/* Reset Positions Button */}
+              <div style={{
+                padding: '20px',
+                background: themeColors.cardBgAlt,
+                borderRadius: '12px',
+                border: `1px solid ${themeColors.cardBorder}`,
+              }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '12px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: themeColors.textSecondary,
+                }}>
+                  Label Positions
+                </label>
+                <p style={{
+                  margin: '0 0 12px 0',
+                  fontSize: '12px',
+                  color: themeColors.textMuted,
+                  lineHeight: 1.5,
+                }}>
+                  Drag labels on the chart to reposition them. Click the button below to reset all labels to their default positions.
+                </p>
+                <button
+                  className="control-btn"
+                  onClick={() => setLabelPositions({})}
+                  style={{ width: '100%' }}
+                >
+                  Reset Label Positions
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
+              <button
+                className="add-btn"
+                onClick={() => setShowLabelsPanel(false)}
+                style={{ flex: 1 }}
+              >
+                Save & Close
+              </button>
+              <button
+                className="control-btn"
+                onClick={() => setShowLabelsPanel(false)}
                 style={{ padding: '14px 28px' }}
               >
                 Cancel
@@ -3125,10 +3421,21 @@ function BellCurveApp() {
                 {/* Test name labels with collision avoidance - always shown in print, toggle in screen view */}
                 {(showLabelsOnCurve || typeof window !== 'undefined') && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
-                  const labelPositions = getLabelPositionsWithCollisionAvoidance(stackedPositions);
+                  const labelPositionsData = getLabelPositionsWithCollisionAvoidance(stackedPositions);
 
-                  return labelPositions.map((labelInfo) => {
+                  return labelPositionsData.map((labelInfo) => {
                     const { test, markerX, markerY, labelY, adjustedX, textAnchor, rectX, rectWidth, rectHeight, needsConnector } = labelInfo;
+
+                    // Apply custom position offset if exists
+                    const customPos = labelPositions[test.id];
+                    const finalLabelY = customPos ? labelY + customPos.y : labelY;
+                    const finalAdjustedX = customPos ? adjustedX + customPos.x : adjustedX;
+                    const finalRectX = customPos ? rectX + customPos.x : rectX;
+
+                    // Recalculate rect dimensions based on custom styles
+                    const textLength = test.name.length * (labelStyles.fontSize * 0.6);
+                    const finalRectWidth = Math.min(textLength + labelStyles.padding * 2, labelStyles.maxWidth);
+                    const finalRectHeight = labelStyles.fontSize + labelStyles.padding * 2;
 
                     return (
                       <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
@@ -3139,8 +3446,8 @@ function BellCurveApp() {
                             <line
                               x1={markerX}
                               y1={markerY + 18}
-                              x2={markerX}
-                              y2={labelY - rectHeight / 2 - 2}
+                              x2={customPos ? markerX + customPos.x : markerX}
+                              y2={finalLabelY - finalRectHeight / 2 - 2}
                               stroke={test.color}
                               strokeWidth="1.5"
                               strokeDasharray="3,3"
@@ -3151,25 +3458,29 @@ function BellCurveApp() {
 
                         {/* Label background for better readability */}
                         <rect
-                          x={rectX}
-                          y={labelY - rectHeight / 2}
-                          width={rectWidth}
-                          height={rectHeight}
-                          rx="4"
-                          fill="white"
+                          x={finalRectX}
+                          y={finalLabelY - finalRectHeight / 2}
+                          width={finalRectWidth}
+                          height={finalRectHeight}
+                          rx={labelStyles.borderRadius}
+                          fill={themeColors.cardBg}
                           stroke={test.color}
                           strokeWidth="2"
+                          style={{ cursor: 'grab' }}
+                          onMouseDown={(e) => handleLabelDragStart(e, test.id, finalRectX, finalLabelY)}
+                          onTouchStart={(e) => handleLabelDragStart(e, test.id, finalRectX, finalLabelY)}
                         />
 
                         {/* Test name label */}
                         <text
-                          x={adjustedX}
-                          y={labelY + 3}
+                          x={finalAdjustedX}
+                          y={finalLabelY + labelStyles.fontSize / 3}
                           textAnchor={textAnchor}
                           fill={test.color}
-                          fontSize="10"
+                          fontSize={labelStyles.fontSize}
                           fontWeight="700"
                           fontFamily="Nunito, sans-serif"
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}
                         >
                           {test.name}
                         </text>
