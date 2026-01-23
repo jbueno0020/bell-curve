@@ -318,6 +318,54 @@ const getContrastTextColor = (hexColor) => {
   return luminance > 0.5 ? '#1a1a2e' : '#ffffff';
 };
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('BellCurveApp error:', error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{
+          padding: '24px',
+          margin: '32px auto',
+          maxWidth: '640px',
+          fontFamily: 'Nunito, sans-serif',
+          background: '#ffffff',
+          color: '#1a1a2e',
+          borderRadius: '12px',
+          border: '1px solid #e0e0e0',
+          boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
+        }}>
+          <h2 style={{ marginTop: 0 }}>App failed to load</h2>
+          <p style={{ marginBottom: 0 }}>
+            Please refresh the page or contact support if this keeps happening.
+          </p>
+          <pre style={{
+            marginTop: '16px',
+            whiteSpace: 'pre-wrap',
+            fontSize: '12px',
+            color: '#6b7280',
+          }}>
+            {String(this.state.error)}
+          </pre>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function BellCurveApp() {
   const [mode, setMode] = React.useState('input');
   const [tests, setTests] = React.useState([]);
@@ -346,7 +394,7 @@ function BellCurveApp() {
   const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
 
   // Bell curve label display options - simplified
-  const [pinnedTooltipId, setPinnedTooltipId] = React.useState(null); // Track clicked/tapped marker for pinned tooltip
+  const [activeTooltipId, setActiveTooltipId] = React.useState(null); // Touch tooltip state
   const [isPrintMode, setIsPrintMode] = React.useState(false); // Print/PDF mode with numbered markers
   const [showScoresList, setShowScoresList] = React.useState(true); // Show scores list panel
   const [sortScoresAsc, setSortScoresAsc] = React.useState(true); // Sort scores ascending
@@ -364,8 +412,15 @@ function BellCurveApp() {
   const [theme, setTheme] = React.useState('dark'); // 'light' or 'dark'
   const [bellCurveColor, setBellCurveColor] = React.useState('#667eea');
   const [showThemePanel, setShowThemePanel] = React.useState(false);
+  const [showLabelsPanel, setShowLabelsPanel] = React.useState(false);
 
-  // (Removed: Label customization state - no longer needed for simplified tooltip approach)
+  // Label style controls for panel inputs
+  const [labelStyles, setLabelStyles] = React.useState({
+    borderRadius: 6,
+    padding: 6,
+    maxWidth: 180,
+    fontSize: 11,
+  });
 
   // Theme colors based on current theme
   const themeColors = React.useMemo(() => {
@@ -489,6 +544,20 @@ function BellCurveApp() {
       setIsPrintPreview(false);
     }
   }, [mode]);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (event.pointerType && event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+        return;
+      }
+      const marker = event.target.closest('.score-marker');
+      if (!marker) {
+        setActiveTooltipId(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, []);
 
   // Save current profile
   const saveCurrentProfile = () => {
@@ -3163,74 +3232,6 @@ function BellCurveApp() {
                 {/* REMOVED OLD LABEL CODE - was calling non-existent functions */}
 
 
-                {/* TOOLTIPS: Show on hover or when pinned */}
-                {getStackedPositions(getVisibleTests()).map(({ test, x, y }) => {
-                  const showTooltip = (hoveredTestId === test.id || pinnedTooltipId === test.id) && !isPrintMode;
-                  if (!showTooltip) return null;
-
-                  // Position tooltip near marker
-                  const tooltipOffsetX = x > 650 ? -90 : 35;
-                  const tooltipOffsetY = -40;
-                  const tooltipX = x + tooltipOffsetX;
-                  const tooltipY = y + tooltipOffsetY;
-                  const tooltipWidth = 140;
-                  const tooltipHeight = 70;
-
-                  return (
-                    <g key={`tooltip-${test.id}`}>
-                      {/* Tooltip box with shadow */}
-                      <rect
-                        x={tooltipX}
-                        y={tooltipY}
-                        width={tooltipWidth}
-                        height={tooltipHeight}
-                        rx={6}
-                        fill={themeColors.cardBg}
-                        stroke={test.color}
-                        strokeWidth="2.5"
-                        filter="url(#tooltipShadow)"
-                        opacity="0.98"
-                      />
-                      {/* Test name */}
-                      <text
-                        x={tooltipX + tooltipWidth / 2}
-                        y={tooltipY + 20}
-                        textAnchor="middle"
-                        fill={test.color}
-                        fontSize="12"
-                        fontWeight="800"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        {test.name}
-                      </text>
-                      {/* Score */}
-                      <text
-                        x={tooltipX + tooltipWidth / 2}
-                        y={tooltipY + 38}
-                        textAnchor="middle"
-                        fill={themeColors.text}
-                        fontSize="14"
-                        fontWeight="700"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        Score: {test.score}
-                      </text>
-                      {/* Descriptor */}
-                      <text
-                        x={tooltipX + tooltipWidth / 2}
-                        y={tooltipY + 55}
-                        textAnchor="middle"
-                        fill={themeColors.textMuted}
-                        fontSize="10"
-                        fontWeight="600"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        {getScoreDescriptor(test.score)}
-                      </text>
-                    </g>
-                  );
-                })}
-
                 {/* PRINT MODE: Numbered markers */}
                 {isPrintMode && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index) => {
                   const markerNumber = index + 1;
@@ -3263,6 +3264,7 @@ function BellCurveApp() {
                 {/* Score markers with stacking and hover */}
                 {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
                   const isHovered = hoveredTestId === test.id;
+                  const isTooltipVisible = isHovered || activeTooltipId === test.id;
                   const isHidden = hoveredTestId !== null && !isHovered;
                   const textColor = getContrastTextColor(test.color);
 
@@ -3272,12 +3274,17 @@ function BellCurveApp() {
                       className="score-marker"
                       onMouseEnter={() => setHoveredTestId(test.id)}
                       onMouseLeave={() => setHoveredTestId(null)}
-                      onClick={() => setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id)}
+                      onPointerDown={(event) => {
+                        if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+                          setActiveTooltipId(activeTooltipId === test.id ? null : test.id);
+                        }
+                      }}
                       style={{
                         cursor: 'pointer',
                         opacity: isHidden ? 0.15 : 1,
                         transition: 'opacity 0.2s ease',
                       }}
+                      data-test-id={test.id}
                     >
                       {/* Vertical line to base of curve */}
                       <line
@@ -3328,7 +3335,7 @@ function BellCurveApp() {
                       </text>
                       
                       {/* Tooltip on hover */}
-                      {isHovered && (
+                      {isTooltipVisible && (
                         <g className="tooltip">
                           {/* Tooltip background - dark background for better contrast */}
                           <rect
@@ -3388,7 +3395,7 @@ function BellCurveApp() {
                 })}
 
                 {/* REMOVED OLD LABEL CODE - was calling non-existent functions */}
-
+              </svg>
 
               {/* SCORES LIST PANEL */}
               {showScoresList && tests.length > 0 && (
@@ -3443,23 +3450,14 @@ function BellCurveApp() {
                       return sortedTests.map((test, index) => (
                         <div
                           key={test.id}
-                          onClick={() => {
-                            setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id);
-                            // Scroll marker into view if needed
-                            const marker = document.querySelector(`.score-marker[data-test-id="${test.id}"]`);
-                            if (marker) {
-                              marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }
-                          }}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '12px',
                             padding: '10px 12px',
-                            background: pinnedTooltipId === test.id ? `${test.color}15` : themeColors.cardBgAlt,
+                            background: themeColors.cardBgAlt,
                             borderRadius: '6px',
-                            cursor: 'pointer',
-                            border: `2px solid ${pinnedTooltipId === test.id ? test.color : 'transparent'}`,
+                            border: `2px solid transparent`,
                             transition: 'all 0.2s ease',
                           }}
                         >
@@ -3896,10 +3894,35 @@ function BellCurveApp() {
   );
 }
 
+        const rootElement = document.getElementById('root');
+        const showFatalError = (error) => {
+          if (!rootElement || rootElement.dataset.errorDisplayed) {
+            return;
+          }
+          rootElement.dataset.errorDisplayed = 'true';
+          rootElement.innerHTML = `
+            <div style="padding:24px;margin:32px auto;max-width:640px;font-family:Nunito, sans-serif;background:#ffffff;color:#1a1a2e;border-radius:12px;border:1px solid #e0e0e0;box-shadow:0 12px 30px rgba(0,0,0,0.08);">
+              <h2 style="margin-top:0;">App failed to load</h2>
+              <p style="margin-bottom:0;">Please refresh the page or contact support if this keeps happening.</p>
+              <pre style="margin-top:16px;white-space:pre-wrap;font-size:12px;color:#6b7280;">${String(error)}</pre>
+            </div>
+          `;
+        };
 
+        window.addEventListener('error', (event) => {
+          showFatalError(event.error || event.message);
+        });
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<BellCurveApp />);
+        window.addEventListener('unhandledrejection', (event) => {
+          showFatalError(event.reason || 'Unknown error');
+        });
+
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(
+          <ErrorBoundary>
+            <BellCurveApp />
+          </ErrorBoundary>
+        );
     </script>
 </body>
 </html>
