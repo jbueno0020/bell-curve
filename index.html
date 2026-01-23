@@ -394,7 +394,7 @@ function BellCurveApp() {
   const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
 
   // Bell curve label display options - simplified
-  const [pinnedTooltipId, setPinnedTooltipId] = React.useState(null); // Track clicked/tapped marker for pinned tooltip
+  const [activeTooltipId, setActiveTooltipId] = React.useState(null); // Touch tooltip state
   const [isPrintMode, setIsPrintMode] = React.useState(false); // Print/PDF mode with numbered markers
   const [showScoresList, setShowScoresList] = React.useState(true); // Show scores list panel
   const [sortScoresAsc, setSortScoresAsc] = React.useState(true); // Sort scores ascending
@@ -544,6 +544,20 @@ function BellCurveApp() {
       setIsPrintPreview(false);
     }
   }, [mode]);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (event.pointerType && event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+        return;
+      }
+      const marker = event.target.closest('.score-marker');
+      if (!marker) {
+        setActiveTooltipId(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, []);
 
   // Save current profile
   const saveCurrentProfile = () => {
@@ -3250,6 +3264,7 @@ function BellCurveApp() {
                 {/* Score markers with stacking and hover */}
                 {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
                   const isHovered = hoveredTestId === test.id;
+                  const isTooltipVisible = isHovered || activeTooltipId === test.id;
                   const isHidden = hoveredTestId !== null && !isHovered;
                   const textColor = getContrastTextColor(test.color);
 
@@ -3259,12 +3274,17 @@ function BellCurveApp() {
                       className="score-marker"
                       onMouseEnter={() => setHoveredTestId(test.id)}
                       onMouseLeave={() => setHoveredTestId(null)}
-                      onClick={() => setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id)}
+                      onPointerDown={(event) => {
+                        if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+                          setActiveTooltipId(activeTooltipId === test.id ? null : test.id);
+                        }
+                      }}
                       style={{
                         cursor: 'pointer',
                         opacity: isHidden ? 0.15 : 1,
                         transition: 'opacity 0.2s ease',
                       }}
+                      data-test-id={test.id}
                     >
                       {/* Vertical line to base of curve */}
                       <line
@@ -3315,7 +3335,7 @@ function BellCurveApp() {
                       </text>
                       
                       {/* Tooltip on hover */}
-                      {isHovered && (
+                      {isTooltipVisible && (
                         <g className="tooltip">
                           {/* Tooltip background - dark background for better contrast */}
                           <rect
@@ -3430,23 +3450,14 @@ function BellCurveApp() {
                       return sortedTests.map((test, index) => (
                         <div
                           key={test.id}
-                          onClick={() => {
-                            setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id);
-                            // Scroll marker into view if needed
-                            const marker = document.querySelector(`.score-marker[data-test-id="${test.id}"]`);
-                            if (marker) {
-                              marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }
-                          }}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '12px',
                             padding: '10px 12px',
-                            background: pinnedTooltipId === test.id ? `${test.color}15` : themeColors.cardBgAlt,
+                            background: themeColors.cardBgAlt,
                             borderRadius: '6px',
-                            cursor: 'pointer',
-                            border: `2px solid ${pinnedTooltipId === test.id ? test.color : 'transparent'}`,
+                            border: `2px solid transparent`,
                             transition: 'all 0.2s ease',
                           }}
                         >
