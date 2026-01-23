@@ -345,11 +345,11 @@ function BellCurveApp() {
   const [currentProfileId, setCurrentProfileId] = React.useState(null);
   const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
 
-  // Bell curve label display options
-  const [showLabelsOnCurve, setShowLabelsOnCurve] = React.useState(false);
-  const [labelDisplayMode, setLabelDisplayMode] = React.useState('screen'); // 'screen' or 'presentation'
-  const [pinLabels, setPinLabels] = React.useState(false); // For screen mode - keep labels visible
-  const [hoveredBubbleForLabel, setHoveredBubbleForLabel] = React.useState(null); // Track hover for tooltip
+  // Bell curve label display options - simplified
+  const [pinnedTooltipId, setPinnedTooltipId] = React.useState(null); // Track clicked/tapped marker for pinned tooltip
+  const [isPrintMode, setIsPrintMode] = React.useState(false); // Print/PDF mode with numbered markers
+  const [showScoresList, setShowScoresList] = React.useState(true); // Show scores list panel
+  const [sortScoresAsc, setSortScoresAsc] = React.useState(true); // Sort scores ascending
 
   // Autocomplete state
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
@@ -365,16 +365,7 @@ function BellCurveApp() {
   const [bellCurveColor, setBellCurveColor] = React.useState('#667eea');
   const [showThemePanel, setShowThemePanel] = React.useState(false);
 
-  // Label customization state
-  const [labelStyles, setLabelStyles] = React.useState({
-    borderRadius: 4,
-    padding: 6,
-    maxWidth: 200,
-    fontSize: 10,
-  });
-  const [labelPositions, setLabelPositions] = React.useState({}); // { testId: { x: offsetX, y: offsetY } }
-  const [showLabelsPanel, setShowLabelsPanel] = React.useState(false);
-  const [draggedLabel, setDraggedLabel] = React.useState(null);
+  // (Removed: Label customization state - no longer needed for simplified tooltip approach)
 
   // Theme colors based on current theme
   const themeColors = React.useMemo(() => {
@@ -455,15 +446,7 @@ function BellCurveApp() {
         setBellCurveColor(savedCurveColor);
       }
 
-      const savedLabelStyles = localStorage.getItem('bellcurve_labelstyles');
-      if (savedLabelStyles) {
-        setLabelStyles(JSON.parse(savedLabelStyles));
-      }
-
-      const savedLabelPositions = localStorage.getItem('bellcurve_labelpositions');
-      if (savedLabelPositions) {
-        setLabelPositions(JSON.parse(savedLabelPositions));
-      }
+      // (Removed: Label styles/positions loading - no longer needed)
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
     }
@@ -491,15 +474,7 @@ function BellCurveApp() {
     }
   }, [theme, bellCurveColor]);
 
-  // Save label customization to localStorage
-  React.useEffect(() => {
-    try {
-      localStorage.setItem('bellcurve_labelstyles', JSON.stringify(labelStyles));
-      localStorage.setItem('bellcurve_labelpositions', JSON.stringify(labelPositions));
-    } catch (error) {
-      console.error('Error saving label settings:', error);
-    }
-  }, [labelStyles, labelPositions]);
+  // (Removed: Label customization localStorage - no longer needed)
 
   React.useEffect(() => {
     const handleAfterPrint = () => {
@@ -620,61 +595,22 @@ function BellCurveApp() {
     }, 100);
   };
 
-  // Label drag handlers
-  const handleLabelDragStart = (e, testId, startX, startY) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
-    const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
-
-    setDraggedLabel({
-      testId,
-      startX: clientX,
-      startY: clientY,
-      initialOffsetX: labelPositions[testId]?.x || 0,
-      initialOffsetY: labelPositions[testId]?.y || 0,
-    });
+  // Get score descriptor (Very Low, Low, Average, etc.)
+  const getScoreDescriptor = (score) => {
+    if (score < 70) return 'Very Low';
+    if (score < 85) return 'Low';
+    if (score < 100) return 'Low Average';
+    if (score < 115) return 'Average';
+    if (score < 130) return 'High Average';
+    if (score < 145) return 'Superior';
+    return 'Very Superior';
   };
 
-  // Handle drag move and end via useEffect
-  React.useEffect(() => {
-    if (!draggedLabel) return;
-
-    const handleMove = (e) => {
-      e.preventDefault();
-      const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
-      const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
-
-      const deltaX = clientX - draggedLabel.startX;
-      const deltaY = clientY - draggedLabel.startY;
-
-      // Update label position with normalized coordinates
-      setLabelPositions(prev => ({
-        ...prev,
-        [draggedLabel.testId]: {
-          x: draggedLabel.initialOffsetX + deltaX,
-          y: draggedLabel.initialOffsetY + deltaY,
-        },
-      }));
-    };
-
-    const handleEnd = () => {
-      setDraggedLabel(null);
-    };
-
-    document.addEventListener('mousemove', handleMove);
-    document.addEventListener('mouseup', handleEnd);
-    document.addEventListener('touchmove', handleMove);
-    document.addEventListener('touchend', handleEnd);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMove);
-      document.removeEventListener('mouseup', handleEnd);
-      document.removeEventListener('touchmove', handleMove);
-      document.removeEventListener('touchend', handleEnd);
-    };
-  }, [draggedLabel]);
+  // Get percentile label for a score
+  const getPercentileLabel = (score) => {
+    const percentile = getPercentileRank(score);
+    return formatPercentile(percentile);
+  };
 
   const handleExportProfiles = () => {
     if (savedProfiles.length === 0) {
@@ -1086,530 +1022,7 @@ function BellCurveApp() {
     return positions;
   };
 
-  // Calculate label positions with collision avoidance - bubbles and labels separated
-  // ===== IMPROVED LABEL PLACEMENT ENGINE =====
-  //
-  // This engine automatically positions labels around score bubbles using a cost-based
-  // algorithm. For each label, it generates 6 candidate positions (right, left, up-right,
-  // up-left, down-right, down-left) and scores each based on multiple factors:
-  //   - Overlap with other labels (high penalty)
-  //   - Out of chart bounds (high penalty)
-  //   - Overlap with bubbles (high penalty)
-  //   - Connector length (medium penalty)
-  //   - Connector crossing curve area (medium penalty)
-  //   - Distance from bubble (low penalty)
-  //
-  // TUNING CONSTANTS:
-  // - Candidate offsets: dx=±70, dy=0/±35 (see generateCandidatePositions)
-  // - Chart bounds padding: minX=20, maxX=780, minY=chartTop+10, maxY=chartBottom+60
-  // - Elbow connector jog distance: 20px horizontal from bubble edge
-  // - Cost multipliers: bounds=5x, overlap=0.5x per pixel², bubble=300, crossing=100
-  //
-  // DEBUG MODE:
-  // Set DEBUG_LABEL_PLACEMENT = true to visualize:
-  //   - All candidate positions (red dashed boxes)
-  //   - Chosen position (green dashed box)
-  //   - Cost scores displayed as numbers
-  const DEBUG_LABEL_PLACEMENT = false;
-
-  /**
-   * Checks if two rectangles overlap
-   * @param {Object} rect1 - {x, y, width, height}
-   * @param {Object} rect2 - {x, y, width, height}
-   * @returns {boolean} True if rectangles overlap
-   */
-  const rectsOverlap = (rect1, rect2) => {
-    return !(
-      rect1.x + rect1.width < rect2.x ||
-      rect2.x + rect2.width < rect1.x ||
-      rect1.y + rect1.height < rect2.y ||
-      rect2.y + rect2.height < rect1.y
-    );
-  };
-
-  /**
-   * Calculates the Y position on the bell curve for a given X coordinate
-   * @param {number} x - X coordinate
-   * @returns {number} Y coordinate on the curve
-   */
-  const getCurveYAtX = (x) => {
-    // Convert x coordinate to score (0-800 maps to 40-160)
-    const score = 40 + (x / 800) * 120;
-    const mean = 100;
-    const stdDev = 15;
-    const z = (score - mean) / stdDev;
-    const y = Math.exp(-(z * z) / 2) / Math.sqrt(2 * Math.PI);
-    return chartBottomY - (y * stdDev * (chartBottomY - chartTopPadding) * 2.5);
-  };
-
-  /**
-   * Checks if a line segment intersects with the bell curve area
-   * @param {number} x1 - Start X
-   * @param {number} y1 - Start Y
-   * @param {number} x2 - End X
-   * @param {number} y2 - End Y
-   * @returns {boolean} True if line crosses curve area
-   */
-  const lineIntersectsCurve = (x1, y1, x2, y2) => {
-    // Sample points along the line and check if they're inside the curve
-    const samples = 10;
-    for (let i = 0; i <= samples; i++) {
-      const t = i / samples;
-      const x = x1 + (x2 - x1) * t;
-      const y = y1 + (y2 - y1) * t;
-      const curveY = getCurveYAtX(x);
-      // If point is inside the curve area (above the curve line)
-      if (y < curveY && y > chartTopPadding) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  /**
-   * Generates candidate label positions around a bubble
-   * @param {number} bubbleX - Bubble center X
-   * @param {number} bubbleY - Bubble center Y
-   * @param {number} labelWidth - Label width
-   * @param {number} labelHeight - Label height
-   * @param {number} markerRadius - Bubble radius
-   * @returns {Array} Array of candidate positions with metadata
-   */
-  const generateCandidatePositions = (bubbleX, bubbleY, labelWidth, labelHeight, markerRadius) => {
-    // Candidate offsets from bubble center (dx, dy, name)
-    const offsets = [
-      { dx: 70, dy: 0, name: 'right' },
-      { dx: -70, dy: 0, name: 'left' },
-      { dx: 70, dy: -35, name: 'up-right' },
-      { dx: -70, dy: -35, name: 'up-left' },
-      { dx: 70, dy: 35, name: 'down-right' },
-      { dx: -70, dy: 35, name: 'down-left' },
-    ];
-
-    return offsets.map(offset => {
-      const labelCenterX = bubbleX + offset.dx;
-      const labelCenterY = bubbleY + offset.dy;
-      const rectX = labelCenterX - labelWidth / 2;
-      const rectY = labelCenterY - labelHeight / 2;
-
-      return {
-        name: offset.name,
-        labelCenterX,
-        labelCenterY,
-        rectX,
-        rectY,
-        rectWidth: labelWidth,
-        rectHeight: labelHeight,
-        dx: offset.dx,
-        dy: offset.dy,
-      };
-    });
-  };
-
-  /**
-   * Calculates cost for a candidate label position
-   * @param {Object} candidate - Candidate position
-   * @param {Array} placedLabels - Already placed labels
-   * @param {number} bubbleX - Bubble X
-   * @param {number} bubbleY - Bubble Y
-   * @param {number} markerRadius - Bubble radius
-   * @param {Array} allBubbles - All bubble positions for overlap check
-   * @returns {number} Total cost (lower is better)
-   */
-  const calculateLabelCost = (candidate, placedLabels, bubbleX, bubbleY, markerRadius, allBubbles) => {
-    let cost = 0;
-
-    // Chart bounds (with padding)
-    const chartBounds = {
-      minX: 20,
-      maxX: 780,
-      minY: chartTopPadding + 10,
-      maxY: chartBottomY + 60, // Allow labels below the curve
-    };
-
-    // 1. Out of bounds penalty (HIGH priority)
-    if (candidate.rectX < chartBounds.minX) {
-      cost += (chartBounds.minX - candidate.rectX) * 5;
-    }
-    if (candidate.rectX + candidate.rectWidth > chartBounds.maxX) {
-      cost += (candidate.rectX + candidate.rectWidth - chartBounds.maxX) * 5;
-    }
-    if (candidate.rectY < chartBounds.minY) {
-      cost += (chartBounds.minY - candidate.rectY) * 5;
-    }
-    if (candidate.rectY + candidate.rectHeight > chartBounds.maxY) {
-      cost += (candidate.rectY + candidate.rectHeight - chartBounds.maxY) * 3;
-    }
-
-    // 2. Overlap with other labels penalty (HIGH priority)
-    placedLabels.forEach(placed => {
-      const candidateRect = {
-        x: candidate.rectX,
-        y: candidate.rectY,
-        width: candidate.rectWidth,
-        height: candidate.rectHeight,
-      };
-      const placedRect = {
-        x: placed.rectX,
-        y: placed.rectY,
-        width: placed.rectWidth,
-        height: placed.rectHeight,
-      };
-      if (rectsOverlap(candidateRect, placedRect)) {
-        // Calculate overlap area
-        const overlapX = Math.max(0, Math.min(candidateRect.x + candidateRect.width, placedRect.x + placedRect.width) - Math.max(candidateRect.x, placedRect.x));
-        const overlapY = Math.max(0, Math.min(candidateRect.y + candidateRect.height, placedRect.y + placedRect.height) - Math.max(candidateRect.y, placedRect.y));
-        cost += (overlapX * overlapY) * 0.5; // Heavy penalty for overlap
-      }
-    });
-
-    // 3. Overlap with bubbles penalty (MEDIUM priority)
-    allBubbles.forEach(bubble => {
-      const bubbleRect = {
-        x: bubble.x - markerRadius,
-        y: bubble.y - markerRadius,
-        width: markerRadius * 2,
-        height: markerRadius * 2,
-      };
-      const candidateRect = {
-        x: candidate.rectX,
-        y: candidate.rectY,
-        width: candidate.rectWidth,
-        height: candidate.rectHeight,
-      };
-      if (rectsOverlap(candidateRect, bubbleRect)) {
-        cost += 300; // Heavy penalty for covering bubbles
-      }
-    });
-
-    // 4. Connector length penalty (MEDIUM priority)
-    const connectorLength = Math.sqrt(candidate.dx * candidate.dx + candidate.dy * candidate.dy);
-    cost += connectorLength * 0.3;
-
-    // 5. Connector crossing curve penalty (MEDIUM priority)
-    // Calculate elbow connector path
-    const elbowX = candidate.dx > 0 ? bubbleX + markerRadius + 15 : bubbleX - markerRadius - 15;
-    const elbowY = bubbleY;
-
-    if (lineIntersectsCurve(bubbleX, bubbleY, elbowX, elbowY) ||
-        lineIntersectsCurve(elbowX, elbowY, candidate.labelCenterX, candidate.labelCenterY)) {
-      cost += 100; // Penalty for crossing curve
-    }
-
-    // 6. Distance from anchor penalty (LOW priority - prefer labels near bubble cluster)
-    const distance = Math.sqrt(candidate.dx * candidate.dx + candidate.dy * candidate.dy);
-    cost += distance * 0.2;
-
-    // 7. Preference for right-side placement (slight bias)
-    if (candidate.name.includes('right')) {
-      cost -= 5;
-    }
-
-    // 8. Avoid extreme vertical positions
-    if (Math.abs(candidate.dy) > 50) {
-      cost += 20;
-    }
-
-    return cost;
-  };
-
-  /**
-   * Main label placement engine using candidate positions and cost function
-   * @param {Array} stackedPositions - Array of {test, x, y, baseY, isStacked}
-   * @returns {Array} Array of label data with optimal positions
-   */
-  const getLabelPositionsWithCollisionAvoidance = (stackedPositions) => {
-    if (!stackedPositions || stackedPositions.length === 0) return [];
-
-    const markerRadius = 18;
-    const labelHeight = 18;
-    const labelData = [];
-    const placedLabels = [];
-
-    // Process each bubble
-    stackedPositions.forEach((item) => {
-      const { test, x, y } = item;
-
-      // Calculate label dimensions
-      const rectWidth = Math.max(test.name.length * 7 + 12, 60);
-      const rectHeight = labelHeight;
-
-      // Generate candidate positions
-      const candidates = generateCandidatePositions(x, y, rectWidth, rectHeight, markerRadius);
-
-      // Score each candidate
-      const scoredCandidates = candidates.map(candidate => {
-        const cost = calculateLabelCost(
-          candidate,
-          placedLabels,
-          x,
-          y,
-          markerRadius,
-          stackedPositions.map(p => ({ x: p.x, y: p.y }))
-        );
-        return { ...candidate, cost };
-      });
-
-      // Sort by cost (lowest first) and pick the best
-      scoredCandidates.sort((a, b) => a.cost - b.cost);
-      const bestCandidate = scoredCandidates[0];
-
-      // Determine text anchor based on label position
-      let textAnchor = 'middle';
-      let adjustedX = bestCandidate.labelCenterX;
-
-      if (bestCandidate.name.includes('left')) {
-        textAnchor = 'end';
-        adjustedX = bestCandidate.rectX + bestCandidate.rectWidth - 6;
-      } else if (bestCandidate.name.includes('right')) {
-        textAnchor = 'start';
-        adjustedX = bestCandidate.rectX + 6;
-      }
-
-      // Create label data
-      const labelInfo = {
-        test,
-        markerX: x,
-        markerY: y,
-        textAnchor,
-        adjustedX,
-        rectWidth: bestCandidate.rectWidth,
-        rectHeight: bestCandidate.rectHeight,
-        rectX: bestCandidate.rectX,
-        labelY: bestCandidate.labelCenterY,
-        needsConnector: true,
-        // Store all candidates for debug visualization
-        candidates: DEBUG_LABEL_PLACEMENT ? scoredCandidates : undefined,
-        chosenCandidate: DEBUG_LABEL_PLACEMENT ? bestCandidate.name : undefined,
-      };
-
-      labelData.push(labelInfo);
-      placedLabels.push({
-        rectX: bestCandidate.rectX,
-        rectY: bestCandidate.rectY,
-        rectWidth: bestCandidate.rectWidth,
-        rectHeight: bestCandidate.rectHeight,
-      });
-    });
-
-    // Light collision resolution pass - nudge overlapping labels vertically
-    for (let i = 0; i < labelData.length; i++) {
-      for (let j = i + 1; j < labelData.length; j++) {
-        const label1 = labelData[i];
-        const label2 = labelData[j];
-
-        const rect1 = {
-          x: label1.rectX,
-          y: label1.labelY - label1.rectHeight / 2,
-          width: label1.rectWidth,
-          height: label1.rectHeight,
-        };
-        const rect2 = {
-          x: label2.rectX,
-          y: label2.labelY - label2.rectHeight / 2,
-          width: label2.rectWidth,
-          height: label2.rectHeight,
-        };
-
-        if (rectsOverlap(rect1, rect2)) {
-          // Nudge label2 down
-          const overlapY = (rect1.y + rect1.height) - rect2.y + 5;
-          labelData[j].labelY += overlapY;
-        }
-      }
-    }
-
-    return labelData;
-  };
-
-  /**
-   * Generates elbow connector path from bubble to label
-   * @param {number} bubbleX - Bubble center X
-   * @param {number} bubbleY - Bubble center Y
-   * @param {number} labelCenterX - Label center X
-   * @param {number} labelCenterY - Label center Y
-   * @param {number} markerRadius - Bubble radius
-   * @returns {string} SVG path string for elbow connector
-   */
-  const generateElbowConnector = (bubbleX, bubbleY, labelCenterX, labelCenterY, markerRadius) => {
-    // Determine direction
-    const isRight = labelCenterX > bubbleX;
-    const isAbove = labelCenterY < bubbleY;
-
-    // Start point at bubble edge
-    const startX = isRight ? bubbleX + markerRadius : bubbleX - markerRadius;
-    const startY = bubbleY;
-
-    // Elbow point - short horizontal jog from bubble
-    const elbowDistance = 20;
-    const elbowX = isRight ? startX + elbowDistance : startX - elbowDistance;
-    const elbowY = startY;
-
-    // End point at label edge (nearest point on label rectangle)
-    const labelLeft = labelCenterX - 30; // Approximate half-width
-    const labelRight = labelCenterX + 30;
-    const labelTop = labelCenterY - 9; // Approximate half-height
-    const labelBottom = labelCenterY + 9;
-
-    let endX, endY;
-
-    // Determine which edge of the label to connect to
-    if (isRight) {
-      endX = labelLeft;
-      endY = labelCenterY;
-    } else {
-      endX = labelRight;
-      endY = labelCenterY;
-    }
-
-    // Create elbow path: start -> elbow -> end
-    return `M ${startX},${startY} L ${elbowX},${elbowY} L ${elbowX},${endY} L ${endX},${endY}`;
-  };
-  // ===== END IMPROVED LABEL PLACEMENT ENGINE =====
-
-  // ===== PRESENTATION MODE: COLUMN LAYOUT =====
-  /**
-   * Clusters nearby scores together
-   * @param {Array} tests - Array of test objects with scores
-   * @param {number} threshold - Score difference threshold for clustering (default: 3)
-   * @returns {Array} Array of clusters, each containing {tests: [...], centerScore, centerX}
-   */
-  const clusterScores = (tests, threshold = 3) => {
-    if (tests.length === 0) return [];
-
-    // Sort tests by score
-    const sortedTests = [...tests].sort((a, b) => a.score - b.score);
-    const clusters = [];
-    let currentCluster = [sortedTests[0]];
-
-    for (let i = 1; i < sortedTests.length; i++) {
-      const prevScore = sortedTests[i - 1].score;
-      const currentScore = sortedTests[i].score;
-
-      if (currentScore - prevScore <= threshold) {
-        // Add to current cluster
-        currentCluster.push(sortedTests[i]);
-      } else {
-        // Finish current cluster and start new one
-        const centerScore = currentCluster.reduce((sum, t) => sum + t.score, 0) / currentCluster.length;
-        clusters.push({
-          tests: currentCluster,
-          centerScore,
-          centerX: getScoreX(centerScore),
-        });
-        currentCluster = [sortedTests[i]];
-      }
-    }
-
-    // Add final cluster
-    if (currentCluster.length > 0) {
-      const centerScore = currentCluster.reduce((sum, t) => sum + t.score, 0) / currentCluster.length;
-      clusters.push({
-        tests: currentCluster,
-        centerScore,
-        centerX: getScoreX(centerScore),
-      });
-    }
-
-    return clusters;
-  };
-
-  /**
-   * Generates column layout for presentation mode
-   * @param {Array} stackedPositions - Array of {test, x, y}
-   * @returns {Object} Layout data with left and right columns
-   */
-  const getColumnLayout = (stackedPositions) => {
-    if (!stackedPositions || stackedPositions.length === 0) {
-      return { leftColumn: [], rightColumn: [] };
-    }
-
-    const tests = stackedPositions.map(p => p.test);
-    const clusters = clusterScores(tests, 3);
-
-    // Column configuration
-    const leftColumnX = 60; // X position of left column
-    const rightColumnX = 740; // X position of right column
-    const columnWidth = 120; // Width of label boxes
-    const labelHeight = 22; // Height per label line
-    const clusterPadding = 6; // Padding inside cluster box
-    const columnSpacing = 8; // Vertical spacing between clusters
-
-    const leftColumn = [];
-    const rightColumn = [];
-    let leftY = chartTopPadding + 20; // Start Y for left column
-    let rightY = chartTopPadding + 20; // Start Y for right column
-
-    const meanX = getScoreX(100); // Mean score position
-
-    clusters.forEach(cluster => {
-      const { tests, centerScore, centerX } = cluster;
-
-      // Decide which column based on position relative to mean
-      const isLeft = centerX < meanX;
-      const columnX = isLeft ? leftColumnX : rightColumnX;
-
-      // Calculate cluster label dimensions
-      const clusterHeight = tests.length * labelHeight + clusterPadding * 2;
-
-      // Find bubble positions for this cluster
-      const bubblePositions = tests.map(test => {
-        const pos = stackedPositions.find(p => p.test.id === test.id);
-        return { x: pos.x, y: pos.y, test };
-      });
-
-      // Create cluster data
-      const clusterData = {
-        tests,
-        x: columnX,
-        y: isLeft ? leftY : rightY,
-        width: columnWidth,
-        height: clusterHeight,
-        centerX,
-        bubblePositions,
-        isLeft,
-      };
-
-      if (isLeft) {
-        leftColumn.push(clusterData);
-        leftY += clusterHeight + columnSpacing;
-      } else {
-        rightColumn.push(clusterData);
-        rightY += clusterHeight + columnSpacing;
-      }
-    });
-
-    return { leftColumn, rightColumn, columnWidth, labelHeight, clusterPadding };
-  };
-
-  /**
-   * Generates clean elbow connector for column layout
-   * @param {number} bubbleX - Bubble center X
-   * @param {number} bubbleY - Bubble center Y
-   * @param {number} labelX - Label box X
-   * @param {number} labelY - Label box Y (top)
-   * @param {number} labelHeight - Label box height
-   * @param {boolean} isLeft - Is left column
-   * @returns {string} SVG path string
-   */
-  const generateColumnConnector = (bubbleX, bubbleY, labelX, labelY, labelHeight, isLeft, columnWidth) => {
-    const markerRadius = 18;
-
-    // Start point at bubble edge
-    const startX = isLeft ? bubbleX - markerRadius : bubbleX + markerRadius;
-    const startY = bubbleY;
-
-    // End point at label box edge (middle height)
-    const endX = isLeft ? labelX + columnWidth : labelX;
-    const endY = labelY + labelHeight / 2;
-
-    // Elbow point - go horizontal first, then vertical
-    const elbowX = (startX + endX) / 2; // Midpoint horizontally
-
-    // Create path: bubble -> horizontal -> vertical -> label
-    return `M ${startX},${startY} L ${elbowX},${startY} L ${elbowX},${endY} L ${endX},${endY}`;
-  };
-  // ===== END PRESENTATION MODE =====
+  // (Removed: Complex label placement engine - replaced with simple tooltips)
 
   const computedSummary = summaryOverride.trim() ? summaryOverride : generateSummary();
 
@@ -3620,85 +3033,33 @@ function BellCurveApp() {
               {/* Hover instruction and label toggle */}
               <div style={{
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                marginBottom: '16px',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '12px',
               }}>
-                {/* Label mode selector */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
+                <p style={{
+                  margin: 0,
+                  fontSize: '13px',
+                  color: themeColors.textMuted,
                 }}>
-                  <p style={{
-                    margin: 0,
-                    fontSize: '13px',
-                    color: themeColors.textMuted,
-                  }}>
-                    🏷️ Label Display Mode:
-                  </p>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      className="control-btn no-print"
-                      onClick={() => setLabelDisplayMode('screen')}
-                      style={{
-                        fontSize: '12px',
-                        background: labelDisplayMode === 'screen' ? themeColors.accent : 'transparent',
-                        color: labelDisplayMode === 'screen' ? '#fff' : themeColors.text,
-                        border: `1px solid ${themeColors.border}`,
-                      }}
-                    >
-                      📱 Screen
-                    </button>
-                    <button
-                      className="control-btn no-print"
-                      onClick={() => setLabelDisplayMode('presentation')}
-                      style={{
-                        fontSize: '12px',
-                        background: labelDisplayMode === 'presentation' ? themeColors.accent : 'transparent',
-                        color: labelDisplayMode === 'presentation' ? '#fff' : themeColors.text,
-                        border: `1px solid ${themeColors.border}`,
-                      }}
-                    >
-                      📊 Presentation
-                    </button>
-                  </div>
+                  💡 Hover or tap markers to see details
+                </p>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="control-btn no-print"
+                    onClick={() => setShowScoresList(!showScoresList)}
+                    style={{ fontSize: '12px' }}
+                  >
+                    {showScoresList ? '📋 Hide Scores List' : '📋 Show Scores List'}
+                  </button>
+                  <button
+                    className="control-btn no-print"
+                    onClick={() => setIsPrintMode(!isPrintMode)}
+                    style={{ fontSize: '12px' }}
+                  >
+                    {isPrintMode ? '🖨️ Normal View' : '🖨️ Print Mode'}
+                  </button>
                 </div>
-
-                {/* Screen mode: Pin labels option */}
-                {labelDisplayMode === 'screen' && (
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}>
-                    <p style={{
-                      margin: 0,
-                      fontSize: '12px',
-                      color: themeColors.textMuted,
-                    }}>
-                      💡 Hover bubbles to see labels
-                    </p>
-                    <button
-                      className="control-btn no-print"
-                      onClick={() => setPinLabels(!pinLabels)}
-                      style={{ fontSize: '11px' }}
-                    >
-                      {pinLabels ? '📌 Unpin Labels' : '📍 Pin All Labels'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Presentation mode: Description */}
-                {labelDisplayMode === 'presentation' && (
-                  <p style={{
-                    margin: 0,
-                    fontSize: '12px',
-                    color: themeColors.textMuted,
-                  }}>
-                    📋 Labels organized in side columns for clean presentation
-                  </p>
-                )}
               </div>
               
               <svg viewBox="0 0 800 480" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
@@ -3799,8 +3160,8 @@ function BellCurveApp() {
                   ← Average Range (85-115) →
                 </text>
 
-                {/* PRESENTATION MODE: Column-based labels */}
-                {labelDisplayMode === 'presentation' && (() => {
+                {/* OLD LABEL CODE - DISABLED */}
+                {false && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
                   const { leftColumn, rightColumn, columnWidth, labelHeight, clusterPadding } = getColumnLayout(stackedPositions);
 
@@ -3944,8 +3305,8 @@ function BellCurveApp() {
                   );
                 })()}
 
-                {/* SCREEN MODE: Tooltip-style labels on hover/pin */}
-                {labelDisplayMode === 'screen' && (() => {
+                {/* OLD SCREEN MODE - DISABLED */}
+                {false && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
 
                   return stackedPositions.map(({ test, x, y }) => {
@@ -4123,6 +3484,103 @@ function BellCurveApp() {
                   });
                 })()}
 
+                {/* TOOLTIPS: Show on hover or when pinned */}
+                {getStackedPositions(getVisibleTests()).map(({ test, x, y }) => {
+                  const showTooltip = (hoveredTestId === test.id || pinnedTooltipId === test.id) && !isPrintMode;
+                  if (!showTooltip) return null;
+
+                  // Position tooltip near marker
+                  const tooltipOffsetX = x > 650 ? -90 : 35;
+                  const tooltipOffsetY = -40;
+                  const tooltipX = x + tooltipOffsetX;
+                  const tooltipY = y + tooltipOffsetY;
+                  const tooltipWidth = 140;
+                  const tooltipHeight = 70;
+
+                  return (
+                    <g key={`tooltip-${test.id}`}>
+                      {/* Tooltip box with shadow */}
+                      <rect
+                        x={tooltipX}
+                        y={tooltipY}
+                        width={tooltipWidth}
+                        height={tooltipHeight}
+                        rx={6}
+                        fill={themeColors.cardBg}
+                        stroke={test.color}
+                        strokeWidth="2.5"
+                        filter="url(#tooltipShadow)"
+                        opacity="0.98"
+                      />
+                      {/* Test name */}
+                      <text
+                        x={tooltipX + tooltipWidth / 2}
+                        y={tooltipY + 20}
+                        textAnchor="middle"
+                        fill={test.color}
+                        fontSize="12"
+                        fontWeight="800"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {test.name}
+                      </text>
+                      {/* Score */}
+                      <text
+                        x={tooltipX + tooltipWidth / 2}
+                        y={tooltipY + 38}
+                        textAnchor="middle"
+                        fill={themeColors.text}
+                        fontSize="14"
+                        fontWeight="700"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        Score: {test.score}
+                      </text>
+                      {/* Descriptor */}
+                      <text
+                        x={tooltipX + tooltipWidth / 2}
+                        y={tooltipY + 55}
+                        textAnchor="middle"
+                        fill={themeColors.textMuted}
+                        fontSize="10"
+                        fontWeight="600"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {getScoreDescriptor(test.score)}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* PRINT MODE: Numbered markers */}
+                {isPrintMode && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index) => {
+                  const markerNumber = index + 1;
+                  return (
+                    <g key={`print-marker-${test.id}`}>
+                      {/* Number badge next to marker */}
+                      <circle
+                        cx={x + 25}
+                        cy={y - 10}
+                        r={12}
+                        fill={themeColors.cardBg}
+                        stroke={test.color}
+                        strokeWidth="2"
+                      />
+                      <text
+                        x={x + 25}
+                        y={y - 6}
+                        textAnchor="middle"
+                        fill={test.color}
+                        fontSize="11"
+                        fontWeight="800"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {markerNumber}
+                      </text>
+                    </g>
+                  );
+                })}
+
                 {/* Score markers with stacking and hover */}
                 {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
                   const isHovered = hoveredTestId === test.id;
@@ -4133,18 +3591,9 @@ function BellCurveApp() {
                     <g
                       key={test.id}
                       className="score-marker"
-                      onMouseEnter={() => {
-                        setHoveredTestId(test.id);
-                        if (labelDisplayMode === 'screen') {
-                          setHoveredBubbleForLabel(test.id);
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredTestId(null);
-                        if (labelDisplayMode === 'screen') {
-                          setHoveredBubbleForLabel(null);
-                        }
-                      }}
+                      onMouseEnter={() => setHoveredTestId(test.id)}
+                      onMouseLeave={() => setHoveredTestId(null)}
+                      onClick={() => setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id)}
                       style={{
                         cursor: 'pointer',
                         opacity: isHidden ? 0.15 : 1,
@@ -4259,8 +3708,8 @@ function BellCurveApp() {
                   );
                 })}
 
-                {/* PRESENTATION MODE: Column-based labels */}
-                {labelDisplayMode === 'presentation' && (() => {
+                {/* OLD LABEL CODE - DISABLED */}
+                {false && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
                   const { leftColumn, rightColumn, columnWidth, labelHeight, clusterPadding } = getColumnLayout(stackedPositions);
 
@@ -4404,8 +3853,8 @@ function BellCurveApp() {
                   );
                 })()}
 
-                {/* SCREEN MODE: Tooltip-style labels on hover/pin */}
-                {labelDisplayMode === 'screen' && (() => {
+                {/* OLD SCREEN MODE - DISABLED */}
+                {false && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
 
                   return stackedPositions.map(({ test, x, y }) => {
@@ -4583,6 +4032,139 @@ function BellCurveApp() {
                   });
                 })()}
               </svg>
+
+              {/* SCORES LIST PANEL */}
+              {showScoresList && tests.length > 0 && (
+                <div style={{
+                  marginTop: '24px',
+                  padding: '16px',
+                  background: themeColors.cardBg,
+                  borderRadius: '8px',
+                  border: `1px solid ${themeColors.cardBorder}`,
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px',
+                  }}>
+                    <h4 style={{
+                      margin: 0,
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: themeColors.heading,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      📊 Scores Summary
+                    </h4>
+                    <button
+                      onClick={() => setSortScoresAsc(!sortScoresAsc)}
+                      style={{
+                        padding: '4px 12px',
+                        fontSize: '11px',
+                        background: themeColors.buttonBg,
+                        color: themeColors.text,
+                        border: `1px solid ${themeColors.border}`,
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                      }}
+                    >
+                      {sortScoresAsc ? '⬆️ Low to High' : '⬇️ High to Low'}
+                    </button>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}>
+                    {(() => {
+                      const sortedTests = [...tests].sort((a, b) =>
+                        sortScoresAsc ? a.score - b.score : b.score - a.score
+                      );
+                      return sortedTests.map((test, index) => (
+                        <div
+                          key={test.id}
+                          onClick={() => {
+                            setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id);
+                            // Scroll marker into view if needed
+                            const marker = document.querySelector(`.score-marker[data-test-id="${test.id}"]`);
+                            if (marker) {
+                              marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '10px 12px',
+                            background: pinnedTooltipId === test.id ? `${test.color}15` : themeColors.cardBgAlt,
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            border: `2px solid ${pinnedTooltipId === test.id ? test.color : 'transparent'}`,
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          {/* Color chip */}
+                          <div style={{
+                            width: '8px',
+                            height: '32px',
+                            background: test.color,
+                            borderRadius: '4px',
+                            flexShrink: 0,
+                          }} />
+                          {/* Test name */}
+                          <div style={{
+                            flex: 1,
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: test.color,
+                            fontFamily: 'Nunito, sans-serif',
+                          }}>
+                            {isPrintMode && `${index + 1}. `}{test.name}
+                          </div>
+                          {/* Score */}
+                          <div style={{
+                            fontSize: '16px',
+                            fontWeight: '800',
+                            color: themeColors.text,
+                            fontFamily: 'Nunito, sans-serif',
+                            minWidth: '40px',
+                            textAlign: 'right',
+                          }}>
+                            {test.score}
+                          </div>
+                          {/* Range label */}
+                          <div style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: themeColors.textMuted,
+                            fontFamily: 'Nunito, sans-serif',
+                            minWidth: '100px',
+                            textAlign: 'right',
+                          }}>
+                            {getScoreDescriptor(test.score)}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  {isPrintMode && (
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px',
+                      background: themeColors.cardBgAlt,
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      color: themeColors.textMuted,
+                      fontStyle: 'italic',
+                    }}>
+                      💡 Print Mode: Numbers on chart correspond to the list above
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Test Selection Panel */}
