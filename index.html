@@ -440,6 +440,9 @@ function BellCurveApp() {
       const savedTheme = localStorage.getItem('bellcurve_theme');
       if (savedTheme) {
         setTheme(savedTheme);
+      } else {
+        // Set initial theme on HTML element if no saved theme
+        document.documentElement.setAttribute('data-theme', 'dark');
       }
 
       const savedCurveColor = localStorage.getItem('bellcurve_curvecolor');
@@ -470,11 +473,14 @@ function BellCurveApp() {
     }
   }, [branding]);
 
-  // Save theme preferences to localStorage
+  // Save theme preferences to localStorage AND set data-theme on HTML element
   React.useEffect(() => {
     try {
       localStorage.setItem('bellcurve_theme', theme);
       localStorage.setItem('bellcurve_curvecolor', bellCurveColor);
+
+      // CRITICAL FIX: Set data-theme on HTML element for CSS variables to work
+      document.documentElement.setAttribute('data-theme', theme);
     } catch (error) {
       console.error('Error saving theme:', error);
     }
@@ -1161,7 +1167,6 @@ function BellCurveApp() {
 
   return (
     <div
-      data-theme={theme}
       className={isPrintPreview ? 'print-preview' : ''}
       style={{
         minHeight: '100vh',
