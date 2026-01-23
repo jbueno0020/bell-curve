@@ -381,6 +381,7 @@ function BellCurveApp() {
         cardBg: '#ffffff',
         cardBgAlt: 'rgba(248, 249, 250, 0.95)',
         cardBorder: 'rgba(0, 0, 0, 0.15)',
+        labelMaskBg: '#ffffff',
         text: '#1a1a2e',
         textSecondary: '#495057',
         textMuted: '#6c757d',
@@ -404,6 +405,7 @@ function BellCurveApp() {
         cardBg: 'rgba(255, 255, 255, 0.04)',
         cardBgAlt: 'rgba(255, 255, 255, 0.06)',
         cardBorder: 'rgba(255, 255, 255, 0.08)',
+        labelMaskBg: '#1a1a2e',
         text: '#f8f9fa',
         textSecondary: 'rgba(255, 255, 255, 0.85)',
         textMuted: 'rgba(255, 255, 255, 0.5)',
@@ -413,7 +415,7 @@ function BellCurveApp() {
         inputBorderFocus: '#667eea',
         inputText: '#f8f9fa',
         inputPlaceholder: 'rgba(255, 255, 255, 0.4)',
-        chartBg: 'rgba(255, 255, 255, 0.02)',
+        chartBg: '#1a1a2e',
         chartText: 'rgba(255, 255, 255, 0.7)',
         svgText: 'rgba(255, 255, 255, 0.7)',
         panelBg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
@@ -1225,6 +1227,7 @@ function BellCurveApp() {
         * {
           box-sizing: border-box;
         }
+
         
         .mode-btn {
           padding: 14px 32px;
@@ -1679,13 +1682,13 @@ function BellCurveApp() {
       `}</style>
 
       {/* Header */}
-      <div style={{
+      <div className="app-header" style={{
         padding: '24px 40px',
         borderBottom: `1px solid ${themeColors.cardBorder}`,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: theme === 'dark' ? 'rgba(0, 0, 0, 0.2)' : themeColors.cardBgAlt,
+        background: themeColors.cardBgAlt,
         backdropFilter: 'blur(20px)',
         minHeight: '90px',
         gap: '20px',
@@ -1704,11 +1707,7 @@ function BellCurveApp() {
             fontWeight: 700,
             margin: 0,
             lineHeight: 1.2,
-            background: theme === 'light'
-              ? 'linear-gradient(135deg, #1a1a2e 0%, #667eea 100%)'
-              : 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
+            color: themeColors.heading,
             letterSpacing: '-0.5px',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -2919,7 +2918,7 @@ function BellCurveApp() {
 
             {/* Right Panel - Preview */}
             <div>
-              <div className="chart-container">
+              <div className="chart-container" style={{ background: themeColors.chartBg }}>
                 <h3 style={{
                   margin: '0 0 24px 0',
                   fontSize: '18px',
@@ -3151,11 +3150,7 @@ function BellCurveApp() {
                   fontSize: '42px',
                   fontWeight: 700,
                   margin: '0 0 10px 0',
-                  background: theme === 'light'
-                    ? 'linear-gradient(135deg, #1a1a2e 0%, #667eea 100%)'
-                    : 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
+                  color: themeColors.heading,
                 }}>
                   {studentName}'s Score Profile
                 </h2>
@@ -3175,7 +3170,7 @@ function BellCurveApp() {
               )}
             </div>
 
-            <div className="chart-container" style={{ marginBottom: '32px' }}>
+            <div className="chart-container" style={{ marginBottom: '32px', background: themeColors.chartBg }}>
               {/* Hover instruction and label toggle */}
               <div style={{
                 display: 'flex',
@@ -3296,6 +3291,90 @@ function BellCurveApp() {
                 >
                   ← Average Range (85-115) →
                 </text>
+
+                {/* Test name labels with collision avoidance - always shown in print, toggle in screen view */}
+                {(showLabelsOnCurve || typeof window !== 'undefined') && (() => {
+                  const stackedPositions = getStackedPositions(getVisibleTests());
+                  const labelPositionsData = getLabelPositionsWithCollisionAvoidance(stackedPositions);
+
+                  return labelPositionsData.map((labelInfo) => {
+                    const { test, markerX, markerY, labelY, adjustedX, textAnchor, rectX, rectWidth, rectHeight, needsConnector } = labelInfo;
+
+                    // Apply custom position offset if exists
+                    const customPos = labelPositions[test.id];
+                    const finalLabelY = customPos ? labelY + customPos.y : labelY;
+                    const finalAdjustedX = customPos ? adjustedX + customPos.x : adjustedX;
+                    const finalRectX = customPos ? rectX + customPos.x : rectX;
+
+                    // Recalculate rect dimensions based on custom styles
+                    const textLength = test.name.length * (labelStyles.fontSize * 0.6);
+                    const finalRectWidth = Math.min(textLength + labelStyles.padding * 2, labelStyles.maxWidth);
+                    const finalRectHeight = labelStyles.fontSize + labelStyles.padding * 2;
+
+                    const maskPadding = 8;
+                    const labelMaskFill = themeColors.labelMaskBg;
+
+                    return (
+                      <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
+                        {/* Connector line from bubble to label */}
+                        {needsConnector && (
+                          <g>
+                            {/* Vertical line from bottom of bubble to top of label */}
+                            <line
+                              x1={markerX}
+                              y1={markerY + 18}
+                              x2={customPos ? markerX + customPos.x : markerX}
+                              y2={finalLabelY - finalRectHeight / 2 - 2}
+                              stroke={test.color}
+                              strokeWidth="1.5"
+                              strokeDasharray="3,3"
+                              opacity="0.6"
+                            />
+                          </g>
+                        )}
+
+                        {/* Mask behind label to block dotted score lines */}
+                        <rect
+                          x={finalRectX - maskPadding}
+                          y={finalLabelY - finalRectHeight / 2 - maskPadding}
+                          width={finalRectWidth + maskPadding * 2}
+                          height={finalRectHeight + maskPadding * 2}
+                          rx={labelStyles.borderRadius + maskPadding}
+                          fill={labelMaskFill}
+                        />
+
+                        {/* Label background for better readability */}
+                        <rect
+                          x={finalRectX}
+                          y={finalLabelY - finalRectHeight / 2}
+                          width={finalRectWidth}
+                          height={finalRectHeight}
+                          rx={labelStyles.borderRadius}
+                          fill={labelMaskFill}
+                          stroke={test.color}
+                          strokeWidth="2"
+                          style={{ cursor: 'grab' }}
+                          onMouseDown={(e) => handleLabelDragStart(e, test.id, finalRectX, finalLabelY)}
+                          onTouchStart={(e) => handleLabelDragStart(e, test.id, finalRectX, finalLabelY)}
+                        />
+
+                        {/* Test name label */}
+                        <text
+                          x={finalAdjustedX}
+                          y={finalLabelY + labelStyles.fontSize / 3}
+                          textAnchor={textAnchor}
+                          fill={test.color}
+                          fontSize={labelStyles.fontSize}
+                          fontWeight="700"
+                          fontFamily="Nunito, sans-serif"
+                          style={{ pointerEvents: 'none', userSelect: 'none' }}
+                        >
+                          {test.name}
+                        </text>
+                      </g>
+                    );
+                  });
+                })()}
 
                 {/* Score markers with stacking and hover */}
                 {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
@@ -3422,77 +3501,6 @@ function BellCurveApp() {
                     </g>
                   );
                 })}
-
-                {/* Test name labels with collision avoidance - always shown in print, toggle in screen view */}
-                {(showLabelsOnCurve || typeof window !== 'undefined') && (() => {
-                  const stackedPositions = getStackedPositions(getVisibleTests());
-                  const labelPositionsData = getLabelPositionsWithCollisionAvoidance(stackedPositions);
-
-                  return labelPositionsData.map((labelInfo) => {
-                    const { test, markerX, markerY, labelY, adjustedX, textAnchor, rectX, rectWidth, rectHeight, needsConnector } = labelInfo;
-
-                    // Apply custom position offset if exists
-                    const customPos = labelPositions[test.id];
-                    const finalLabelY = customPos ? labelY + customPos.y : labelY;
-                    const finalAdjustedX = customPos ? adjustedX + customPos.x : adjustedX;
-                    const finalRectX = customPos ? rectX + customPos.x : rectX;
-
-                    // Recalculate rect dimensions based on custom styles
-                    const textLength = test.name.length * (labelStyles.fontSize * 0.6);
-                    const finalRectWidth = Math.min(textLength + labelStyles.padding * 2, labelStyles.maxWidth);
-                    const finalRectHeight = labelStyles.fontSize + labelStyles.padding * 2;
-
-                    return (
-                      <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
-                        {/* Connector line from bubble to label */}
-                        {needsConnector && (
-                          <g>
-                            {/* Vertical line from bottom of bubble to top of label */}
-                            <line
-                              x1={markerX}
-                              y1={markerY + 18}
-                              x2={customPos ? markerX + customPos.x : markerX}
-                              y2={finalLabelY - finalRectHeight / 2 - 2}
-                              stroke={test.color}
-                              strokeWidth="1.5"
-                              strokeDasharray="3,3"
-                              opacity="0.6"
-                            />
-                          </g>
-                        )}
-
-                        {/* Label background for better readability */}
-                        <rect
-                          x={finalRectX}
-                          y={finalLabelY - finalRectHeight / 2}
-                          width={finalRectWidth}
-                          height={finalRectHeight}
-                          rx={labelStyles.borderRadius}
-                          fill={themeColors.cardBg}
-                          stroke={test.color}
-                          strokeWidth="2"
-                          style={{ cursor: 'grab' }}
-                          onMouseDown={(e) => handleLabelDragStart(e, test.id, finalRectX, finalLabelY)}
-                          onTouchStart={(e) => handleLabelDragStart(e, test.id, finalRectX, finalLabelY)}
-                        />
-
-                        {/* Test name label */}
-                        <text
-                          x={finalAdjustedX}
-                          y={finalLabelY + labelStyles.fontSize / 3}
-                          textAnchor={textAnchor}
-                          fill={test.color}
-                          fontSize={labelStyles.fontSize}
-                          fontWeight="700"
-                          fontFamily="Nunito, sans-serif"
-                          style={{ pointerEvents: 'none', userSelect: 'none' }}
-                        >
-                          {test.name}
-                        </text>
-                      </g>
-                    );
-                  });
-                })()}
               </svg>
             </div>
 
