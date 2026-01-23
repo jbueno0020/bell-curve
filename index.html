@@ -1225,6 +1225,7 @@ function BellCurveApp() {
         * {
           box-sizing: border-box;
         }
+
         
         .mode-btn {
           padding: 14px 32px;
@@ -1679,13 +1680,13 @@ function BellCurveApp() {
       `}</style>
 
       {/* Header */}
-      <div style={{
+      <div className="app-header" style={{
         padding: '24px 40px',
         borderBottom: `1px solid ${themeColors.cardBorder}`,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: theme === 'dark' ? 'rgba(0, 0, 0, 0.2)' : themeColors.cardBgAlt,
+        background: themeColors.cardBgAlt,
         backdropFilter: 'blur(20px)',
         minHeight: '90px',
         gap: '20px',
