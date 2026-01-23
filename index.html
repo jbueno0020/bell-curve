@@ -3160,8 +3160,8 @@ function BellCurveApp() {
                   ← Average Range (85-115) →
                 </text>
 
-                {/* PRESENTATION MODE: Column-based labels */}
-                {labelDisplayMode === 'presentation' && (() => {
+                {/* OLD LABEL CODE - DISABLED */}
+                {false && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
                   const { leftColumn, rightColumn, columnWidth, labelHeight, clusterPadding } = getColumnLayout(stackedPositions);
 
@@ -3305,8 +3305,8 @@ function BellCurveApp() {
                   );
                 })()}
 
-                {/* SCREEN MODE: Tooltip-style labels on hover/pin */}
-                {labelDisplayMode === 'screen' && (() => {
+                {/* OLD SCREEN MODE - DISABLED */}
+                {false && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
 
                   return stackedPositions.map(({ test, x, y }) => {
@@ -3484,6 +3484,103 @@ function BellCurveApp() {
                   });
                 })()}
 
+                {/* TOOLTIPS: Show on hover or when pinned */}
+                {getStackedPositions(getVisibleTests()).map(({ test, x, y }) => {
+                  const showTooltip = (hoveredTestId === test.id || pinnedTooltipId === test.id) && !isPrintMode;
+                  if (!showTooltip) return null;
+
+                  // Position tooltip near marker
+                  const tooltipOffsetX = x > 650 ? -90 : 35;
+                  const tooltipOffsetY = -40;
+                  const tooltipX = x + tooltipOffsetX;
+                  const tooltipY = y + tooltipOffsetY;
+                  const tooltipWidth = 140;
+                  const tooltipHeight = 70;
+
+                  return (
+                    <g key={`tooltip-${test.id}`}>
+                      {/* Tooltip box with shadow */}
+                      <rect
+                        x={tooltipX}
+                        y={tooltipY}
+                        width={tooltipWidth}
+                        height={tooltipHeight}
+                        rx={6}
+                        fill={themeColors.cardBg}
+                        stroke={test.color}
+                        strokeWidth="2.5"
+                        filter="url(#tooltipShadow)"
+                        opacity="0.98"
+                      />
+                      {/* Test name */}
+                      <text
+                        x={tooltipX + tooltipWidth / 2}
+                        y={tooltipY + 20}
+                        textAnchor="middle"
+                        fill={test.color}
+                        fontSize="12"
+                        fontWeight="800"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {test.name}
+                      </text>
+                      {/* Score */}
+                      <text
+                        x={tooltipX + tooltipWidth / 2}
+                        y={tooltipY + 38}
+                        textAnchor="middle"
+                        fill={themeColors.text}
+                        fontSize="14"
+                        fontWeight="700"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        Score: {test.score}
+                      </text>
+                      {/* Descriptor */}
+                      <text
+                        x={tooltipX + tooltipWidth / 2}
+                        y={tooltipY + 55}
+                        textAnchor="middle"
+                        fill={themeColors.textMuted}
+                        fontSize="10"
+                        fontWeight="600"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {getScoreDescriptor(test.score)}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* PRINT MODE: Numbered markers */}
+                {isPrintMode && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index) => {
+                  const markerNumber = index + 1;
+                  return (
+                    <g key={`print-marker-${test.id}`}>
+                      {/* Number badge next to marker */}
+                      <circle
+                        cx={x + 25}
+                        cy={y - 10}
+                        r={12}
+                        fill={themeColors.cardBg}
+                        stroke={test.color}
+                        strokeWidth="2"
+                      />
+                      <text
+                        x={x + 25}
+                        y={y - 6}
+                        textAnchor="middle"
+                        fill={test.color}
+                        fontSize="11"
+                        fontWeight="800"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {markerNumber}
+                      </text>
+                    </g>
+                  );
+                })}
+
                 {/* Score markers with stacking and hover */}
                 {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
                   const isHovered = hoveredTestId === test.id;
@@ -3494,18 +3591,9 @@ function BellCurveApp() {
                     <g
                       key={test.id}
                       className="score-marker"
-                      onMouseEnter={() => {
-                        setHoveredTestId(test.id);
-                        if (labelDisplayMode === 'screen') {
-                          setHoveredBubbleForLabel(test.id);
-                        }
-                      }}
-                      onMouseLeave={() => {
-                        setHoveredTestId(null);
-                        if (labelDisplayMode === 'screen') {
-                          setHoveredBubbleForLabel(null);
-                        }
-                      }}
+                      onMouseEnter={() => setHoveredTestId(test.id)}
+                      onMouseLeave={() => setHoveredTestId(null)}
+                      onClick={() => setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id)}
                       style={{
                         cursor: 'pointer',
                         opacity: isHidden ? 0.15 : 1,
@@ -3620,8 +3708,8 @@ function BellCurveApp() {
                   );
                 })}
 
-                {/* PRESENTATION MODE: Column-based labels */}
-                {labelDisplayMode === 'presentation' && (() => {
+                {/* OLD LABEL CODE - DISABLED */}
+                {false && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
                   const { leftColumn, rightColumn, columnWidth, labelHeight, clusterPadding } = getColumnLayout(stackedPositions);
 
@@ -3765,8 +3853,8 @@ function BellCurveApp() {
                   );
                 })()}
 
-                {/* SCREEN MODE: Tooltip-style labels on hover/pin */}
-                {labelDisplayMode === 'screen' && (() => {
+                {/* OLD SCREEN MODE - DISABLED */}
+                {false && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
 
                   return stackedPositions.map(({ test, x, y }) => {
@@ -3944,6 +4032,139 @@ function BellCurveApp() {
                   });
                 })()}
               </svg>
+
+              {/* SCORES LIST PANEL */}
+              {showScoresList && tests.length > 0 && (
+                <div style={{
+                  marginTop: '24px',
+                  padding: '16px',
+                  background: themeColors.cardBg,
+                  borderRadius: '8px',
+                  border: `1px solid ${themeColors.cardBorder}`,
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '12px',
+                  }}>
+                    <h4 style={{
+                      margin: 0,
+                      fontSize: '14px',
+                      fontWeight: '700',
+                      color: themeColors.heading,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      📊 Scores Summary
+                    </h4>
+                    <button
+                      onClick={() => setSortScoresAsc(!sortScoresAsc)}
+                      style={{
+                        padding: '4px 12px',
+                        fontSize: '11px',
+                        background: themeColors.buttonBg,
+                        color: themeColors.text,
+                        border: `1px solid ${themeColors.border}`,
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                      }}
+                    >
+                      {sortScoresAsc ? '⬆️ Low to High' : '⬇️ High to Low'}
+                    </button>
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}>
+                    {(() => {
+                      const sortedTests = [...tests].sort((a, b) =>
+                        sortScoresAsc ? a.score - b.score : b.score - a.score
+                      );
+                      return sortedTests.map((test, index) => (
+                        <div
+                          key={test.id}
+                          onClick={() => {
+                            setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id);
+                            // Scroll marker into view if needed
+                            const marker = document.querySelector(`.score-marker[data-test-id="${test.id}"]`);
+                            if (marker) {
+                              marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            }
+                          }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '10px 12px',
+                            background: pinnedTooltipId === test.id ? `${test.color}15` : themeColors.cardBgAlt,
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            border: `2px solid ${pinnedTooltipId === test.id ? test.color : 'transparent'}`,
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          {/* Color chip */}
+                          <div style={{
+                            width: '8px',
+                            height: '32px',
+                            background: test.color,
+                            borderRadius: '4px',
+                            flexShrink: 0,
+                          }} />
+                          {/* Test name */}
+                          <div style={{
+                            flex: 1,
+                            fontSize: '13px',
+                            fontWeight: '700',
+                            color: test.color,
+                            fontFamily: 'Nunito, sans-serif',
+                          }}>
+                            {isPrintMode && `${index + 1}. `}{test.name}
+                          </div>
+                          {/* Score */}
+                          <div style={{
+                            fontSize: '16px',
+                            fontWeight: '800',
+                            color: themeColors.text,
+                            fontFamily: 'Nunito, sans-serif',
+                            minWidth: '40px',
+                            textAlign: 'right',
+                          }}>
+                            {test.score}
+                          </div>
+                          {/* Range label */}
+                          <div style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: themeColors.textMuted,
+                            fontFamily: 'Nunito, sans-serif',
+                            minWidth: '100px',
+                            textAlign: 'right',
+                          }}>
+                            {getScoreDescriptor(test.score)}
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  {isPrintMode && (
+                    <div style={{
+                      marginTop: '16px',
+                      padding: '12px',
+                      background: themeColors.cardBgAlt,
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                      color: themeColors.textMuted,
+                      fontStyle: 'italic',
+                    }}>
+                      💡 Print Mode: Numbers on chart correspond to the list above
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Test Selection Panel */}
