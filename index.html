@@ -3435,6 +3435,8 @@ function BellCurveApp() {
                     const finalRectWidth = Math.min(textLength + labelStyles.padding * 2, labelStyles.maxWidth);
                     const finalRectHeight = labelStyles.fontSize + labelStyles.padding * 2;
 
+                    const maskPadding = 2;
+
                     return (
                       <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
                         {/* Connector line from bubble to label */}
@@ -3453,6 +3455,16 @@ function BellCurveApp() {
                             />
                           </g>
                         )}
+
+                        {/* Mask behind label to block dotted score lines */}
+                        <rect
+                          x={finalRectX - maskPadding}
+                          y={finalLabelY - finalRectHeight / 2 - maskPadding}
+                          width={finalRectWidth + maskPadding * 2}
+                          height={finalRectHeight + maskPadding * 2}
+                          rx={labelStyles.borderRadius + maskPadding}
+                          fill={themeColors.cardBg}
+                        />
 
                         {/* Label background for better readability */}
                         <rect
