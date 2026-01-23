@@ -1225,6 +1225,7 @@ function BellCurveApp() {
         * {
           box-sizing: border-box;
         }
+
         
         .mode-btn {
           padding: 14px 32px;
@@ -1679,13 +1680,13 @@ function BellCurveApp() {
       `}</style>
 
       {/* Header */}
-      <div style={{
+      <div className="app-header" style={{
         padding: '24px 40px',
         borderBottom: `1px solid ${themeColors.cardBorder}`,
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: theme === 'dark' ? 'rgba(0, 0, 0, 0.2)' : themeColors.cardBgAlt,
+        background: themeColors.cardBgAlt,
         backdropFilter: 'blur(20px)',
         minHeight: '90px',
         gap: '20px',
@@ -1704,11 +1705,7 @@ function BellCurveApp() {
             fontWeight: 700,
             margin: 0,
             lineHeight: 1.2,
-            background: theme === 'light'
-              ? 'linear-gradient(135deg, #1a1a2e 0%, #667eea 100%)'
-              : 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
+            color: themeColors.heading,
             letterSpacing: '-0.5px',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -3151,11 +3148,7 @@ function BellCurveApp() {
                   fontSize: '42px',
                   fontWeight: 700,
                   margin: '0 0 10px 0',
-                  background: theme === 'light'
-                    ? 'linear-gradient(135deg, #1a1a2e 0%, #667eea 100%)'
-                    : 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
+                  color: themeColors.heading,
                 }}>
                   {studentName}'s Score Profile
                 </h2>
@@ -3442,6 +3435,9 @@ function BellCurveApp() {
                     const finalRectWidth = Math.min(textLength + labelStyles.padding * 2, labelStyles.maxWidth);
                     const finalRectHeight = labelStyles.fontSize + labelStyles.padding * 2;
 
+                    const maskPadding = 2;
+                    const labelMaskFill = theme === 'dark' ? '#1a1a2e' : themeColors.cardBg;
+
                     return (
                       <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
                         {/* Connector line from bubble to label */}
@@ -3460,6 +3456,16 @@ function BellCurveApp() {
                             />
                           </g>
                         )}
+
+                        {/* Mask behind label to block dotted score lines */}
+                        <rect
+                          x={finalRectX - maskPadding}
+                          y={finalLabelY - finalRectHeight / 2 - maskPadding}
+                          width={finalRectWidth + maskPadding * 2}
+                          height={finalRectHeight + maskPadding * 2}
+                          rx={labelStyles.borderRadius + maskPadding}
+                          fill={labelMaskFill}
+                        />
 
                         {/* Label background for better readability */}
                         <rect
