@@ -347,6 +347,9 @@ function BellCurveApp() {
 
   // Bell curve label display options
   const [showLabelsOnCurve, setShowLabelsOnCurve] = React.useState(false);
+  const [labelDisplayMode, setLabelDisplayMode] = React.useState('screen'); // 'screen' or 'presentation'
+  const [pinLabels, setPinLabels] = React.useState(false); // For screen mode - keep labels visible
+  const [hoveredBubbleForLabel, setHoveredBubbleForLabel] = React.useState(null); // Track hover for tooltip
 
   // Autocomplete state
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
@@ -1463,6 +1466,150 @@ function BellCurveApp() {
     return `M ${startX},${startY} L ${elbowX},${elbowY} L ${elbowX},${endY} L ${endX},${endY}`;
   };
   // ===== END IMPROVED LABEL PLACEMENT ENGINE =====
+
+  // ===== PRESENTATION MODE: COLUMN LAYOUT =====
+  /**
+   * Clusters nearby scores together
+   * @param {Array} tests - Array of test objects with scores
+   * @param {number} threshold - Score difference threshold for clustering (default: 3)
+   * @returns {Array} Array of clusters, each containing {tests: [...], centerScore, centerX}
+   */
+  const clusterScores = (tests, threshold = 3) => {
+    if (tests.length === 0) return [];
+
+    // Sort tests by score
+    const sortedTests = [...tests].sort((a, b) => a.score - b.score);
+    const clusters = [];
+    let currentCluster = [sortedTests[0]];
+
+    for (let i = 1; i < sortedTests.length; i++) {
+      const prevScore = sortedTests[i - 1].score;
+      const currentScore = sortedTests[i].score;
+
+      if (currentScore - prevScore <= threshold) {
+        // Add to current cluster
+        currentCluster.push(sortedTests[i]);
+      } else {
+        // Finish current cluster and start new one
+        const centerScore = currentCluster.reduce((sum, t) => sum + t.score, 0) / currentCluster.length;
+        clusters.push({
+          tests: currentCluster,
+          centerScore,
+          centerX: getScoreX(centerScore),
+        });
+        currentCluster = [sortedTests[i]];
+      }
+    }
+
+    // Add final cluster
+    if (currentCluster.length > 0) {
+      const centerScore = currentCluster.reduce((sum, t) => sum + t.score, 0) / currentCluster.length;
+      clusters.push({
+        tests: currentCluster,
+        centerScore,
+        centerX: getScoreX(centerScore),
+      });
+    }
+
+    return clusters;
+  };
+
+  /**
+   * Generates column layout for presentation mode
+   * @param {Array} stackedPositions - Array of {test, x, y}
+   * @returns {Object} Layout data with left and right columns
+   */
+  const getColumnLayout = (stackedPositions) => {
+    if (!stackedPositions || stackedPositions.length === 0) {
+      return { leftColumn: [], rightColumn: [] };
+    }
+
+    const tests = stackedPositions.map(p => p.test);
+    const clusters = clusterScores(tests, 3);
+
+    // Column configuration
+    const leftColumnX = 60; // X position of left column
+    const rightColumnX = 740; // X position of right column
+    const columnWidth = 120; // Width of label boxes
+    const labelHeight = 22; // Height per label line
+    const clusterPadding = 6; // Padding inside cluster box
+    const columnSpacing = 8; // Vertical spacing between clusters
+
+    const leftColumn = [];
+    const rightColumn = [];
+    let leftY = chartTopPadding + 20; // Start Y for left column
+    let rightY = chartTopPadding + 20; // Start Y for right column
+
+    const meanX = getScoreX(100); // Mean score position
+
+    clusters.forEach(cluster => {
+      const { tests, centerScore, centerX } = cluster;
+
+      // Decide which column based on position relative to mean
+      const isLeft = centerX < meanX;
+      const columnX = isLeft ? leftColumnX : rightColumnX;
+
+      // Calculate cluster label dimensions
+      const clusterHeight = tests.length * labelHeight + clusterPadding * 2;
+
+      // Find bubble positions for this cluster
+      const bubblePositions = tests.map(test => {
+        const pos = stackedPositions.find(p => p.test.id === test.id);
+        return { x: pos.x, y: pos.y, test };
+      });
+
+      // Create cluster data
+      const clusterData = {
+        tests,
+        x: columnX,
+        y: isLeft ? leftY : rightY,
+        width: columnWidth,
+        height: clusterHeight,
+        centerX,
+        bubblePositions,
+        isLeft,
+      };
+
+      if (isLeft) {
+        leftColumn.push(clusterData);
+        leftY += clusterHeight + columnSpacing;
+      } else {
+        rightColumn.push(clusterData);
+        rightY += clusterHeight + columnSpacing;
+      }
+    });
+
+    return { leftColumn, rightColumn, columnWidth, labelHeight, clusterPadding };
+  };
+
+  /**
+   * Generates clean elbow connector for column layout
+   * @param {number} bubbleX - Bubble center X
+   * @param {number} bubbleY - Bubble center Y
+   * @param {number} labelX - Label box X
+   * @param {number} labelY - Label box Y (top)
+   * @param {number} labelHeight - Label box height
+   * @param {boolean} isLeft - Is left column
+   * @returns {string} SVG path string
+   */
+  const generateColumnConnector = (bubbleX, bubbleY, labelX, labelY, labelHeight, isLeft, columnWidth) => {
+    const markerRadius = 18;
+
+    // Start point at bubble edge
+    const startX = isLeft ? bubbleX - markerRadius : bubbleX + markerRadius;
+    const startY = bubbleY;
+
+    // End point at label box edge (middle height)
+    const endX = isLeft ? labelX + columnWidth : labelX;
+    const endY = labelY + labelHeight / 2;
+
+    // Elbow point - go horizontal first, then vertical
+    const elbowX = (startX + endX) / 2; // Midpoint horizontally
+
+    // Create path: bubble -> horizontal -> vertical -> label
+    return `M ${startX},${startY} L ${elbowX},${startY} L ${elbowX},${endY} L ${endX},${endY}`;
+  };
+  // ===== END PRESENTATION MODE =====
 
   const computedSummary = summaryOverride.trim() ? summaryOverride : generateSummary();
 
@@ -3473,24 +3620,85 @@ function BellCurveApp() {
               {/* Hover instruction and label toggle */}
               <div style={{
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
+                flexDirection: 'column',
+                gap: '12px',
                 marginBottom: '16px',
               }}>
-                <p style={{
-                  margin: 0,
-                  fontSize: '13px',
-                  color: themeColors.textMuted,
+                {/* Label mode selector */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}>
-                  💡 Hover over any score marker to see the test name
-                </p>
-                <button
-                  className="control-btn no-print"
-                  onClick={() => setShowLabelsOnCurve(!showLabelsOnCurve)}
-                  style={{ fontSize: '12px' }}
-                >
-                  {showLabelsOnCurve ? '🏷️ Hide Labels' : '🏷️ Show Labels'}
-                </button>
+                  <p style={{
+                    margin: 0,
+                    fontSize: '13px',
+                    color: themeColors.textMuted,
+                  }}>
+                    🏷️ Label Display Mode:
+                  </p>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      className="control-btn no-print"
+                      onClick={() => setLabelDisplayMode('screen')}
+                      style={{
+                        fontSize: '12px',
+                        background: labelDisplayMode === 'screen' ? themeColors.accent : 'transparent',
+                        color: labelDisplayMode === 'screen' ? '#fff' : themeColors.text,
+                        border: `1px solid ${themeColors.border}`,
+                      }}
+                    >
+                      📱 Screen
+                    </button>
+                    <button
+                      className="control-btn no-print"
+                      onClick={() => setLabelDisplayMode('presentation')}
+                      style={{
+                        fontSize: '12px',
+                        background: labelDisplayMode === 'presentation' ? themeColors.accent : 'transparent',
+                        color: labelDisplayMode === 'presentation' ? '#fff' : themeColors.text,
+                        border: `1px solid ${themeColors.border}`,
+                      }}
+                    >
+                      📊 Presentation
+                    </button>
+                  </div>
+                </div>
+
+                {/* Screen mode: Pin labels option */}
+                {labelDisplayMode === 'screen' && (
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                  }}>
+                    <p style={{
+                      margin: 0,
+                      fontSize: '12px',
+                      color: themeColors.textMuted,
+                    }}>
+                      💡 Hover bubbles to see labels
+                    </p>
+                    <button
+                      className="control-btn no-print"
+                      onClick={() => setPinLabels(!pinLabels)}
+                      style={{ fontSize: '11px' }}
+                    >
+                      {pinLabels ? '📌 Unpin Labels' : '📍 Pin All Labels'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Presentation mode: Description */}
+                {labelDisplayMode === 'presentation' && (
+                  <p style={{
+                    margin: 0,
+                    fontSize: '12px',
+                    color: themeColors.textMuted,
+                  }}>
+                    📋 Labels organized in side columns for clean presentation
+                  </p>
+                )}
               </div>
               
               <svg viewBox="0 0 800 480" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
@@ -3591,8 +3799,216 @@ function BellCurveApp() {
                   ← Average Range (85-115) →
                 </text>
 
-                {/* Test name labels with collision avoidance - always shown in print, toggle in screen view */}
-                {(showLabelsOnCurve || typeof window !== 'undefined') && (() => {
+                {/* PRESENTATION MODE: Column-based labels */}
+                {labelDisplayMode === 'presentation' && (() => {
+                  const stackedPositions = getStackedPositions(getVisibleTests());
+                  const { leftColumn, rightColumn, columnWidth, labelHeight, clusterPadding } = getColumnLayout(stackedPositions);
+
+                  return (
+                    <g>
+                      {/* Render left column clusters */}
+                      {leftColumn.map((cluster, clusterIdx) => (
+                        <g key={`left-cluster-${clusterIdx}`}>
+                          {/* Cluster box */}
+                          <rect
+                            x={cluster.x}
+                            y={cluster.y}
+                            width={cluster.width}
+                            height={cluster.height}
+                            rx={4}
+                            fill={themeColors.labelMaskBg}
+                            stroke={themeColors.border}
+                            strokeWidth="1.5"
+                            opacity="0.95"
+                          />
+
+                          {/* Labels inside cluster */}
+                          {cluster.tests.map((test, testIdx) => (
+                            <g key={`left-label-${test.id}`}>
+                              <text
+                                x={cluster.x + clusterPadding}
+                                y={cluster.y + clusterPadding + testIdx * labelHeight + labelHeight / 2 + 4}
+                                fill={test.color}
+                                fontSize="11"
+                                fontWeight="700"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.name}
+                              </text>
+                              <text
+                                x={cluster.x + cluster.width - clusterPadding}
+                                y={cluster.y + clusterPadding + testIdx * labelHeight + labelHeight / 2 + 4}
+                                textAnchor="end"
+                                fill={test.color}
+                                fontSize="11"
+                                fontWeight="600"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.score}
+                              </text>
+                            </g>
+                          ))}
+
+                          {/* Connector from cluster center to bubbles */}
+                          {cluster.bubblePositions.map((bubble, bubbleIdx) => {
+                            const clusterCenterY = cluster.y + cluster.height / 2;
+                            return (
+                              <path
+                                key={`left-connector-${bubble.test.id}`}
+                                d={generateColumnConnector(
+                                  bubble.x,
+                                  bubble.y,
+                                  cluster.x,
+                                  cluster.y,
+                                  cluster.height,
+                                  true,
+                                  cluster.width
+                                )}
+                                stroke={bubble.test.color}
+                                strokeWidth="1"
+                                fill="none"
+                                opacity="0.35"
+                              />
+                            );
+                          })}
+                        </g>
+                      ))}
+
+                      {/* Render right column clusters */}
+                      {rightColumn.map((cluster, clusterIdx) => (
+                        <g key={`right-cluster-${clusterIdx}`}>
+                          {/* Cluster box */}
+                          <rect
+                            x={cluster.x}
+                            y={cluster.y}
+                            width={cluster.width}
+                            height={cluster.height}
+                            rx={4}
+                            fill={themeColors.labelMaskBg}
+                            stroke={themeColors.border}
+                            strokeWidth="1.5"
+                            opacity="0.95"
+                          />
+
+                          {/* Labels inside cluster */}
+                          {cluster.tests.map((test, testIdx) => (
+                            <g key={`right-label-${test.id}`}>
+                              <text
+                                x={cluster.x + clusterPadding}
+                                y={cluster.y + clusterPadding + testIdx * labelHeight + labelHeight / 2 + 4}
+                                fill={test.color}
+                                fontSize="11"
+                                fontWeight="700"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.name}
+                              </text>
+                              <text
+                                x={cluster.x + cluster.width - clusterPadding}
+                                y={cluster.y + clusterPadding + testIdx * labelHeight + labelHeight / 2 + 4}
+                                textAnchor="end"
+                                fill={test.color}
+                                fontSize="11"
+                                fontWeight="600"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.score}
+                              </text>
+                            </g>
+                          ))}
+
+                          {/* Connector from cluster center to bubbles */}
+                          {cluster.bubblePositions.map((bubble, bubbleIdx) => {
+                            return (
+                              <path
+                                key={`right-connector-${bubble.test.id}`}
+                                d={generateColumnConnector(
+                                  bubble.x,
+                                  bubble.y,
+                                  cluster.x,
+                                  cluster.y,
+                                  cluster.height,
+                                  false,
+                                  cluster.width
+                                )}
+                                stroke={bubble.test.color}
+                                strokeWidth="1"
+                                fill="none"
+                                opacity="0.35"
+                              />
+                            );
+                          })}
+                        </g>
+                      ))}
+                    </g>
+                  );
+                })()}
+
+                {/* SCREEN MODE: Tooltip-style labels on hover/pin */}
+                {labelDisplayMode === 'screen' && (() => {
+                  const stackedPositions = getStackedPositions(getVisibleTests());
+
+                  return stackedPositions.map(({ test, x, y }) => {
+                    // Show label if pinned or if this bubble is hovered
+                    const showLabel = pinLabels || hoveredBubbleForLabel === test.id;
+
+                    if (!showLabel) return null;
+
+                    // Position tooltip near bubble (prefer right, fallback to left if too far right)
+                    const tooltipOffsetX = x > 650 ? -80 : 30;
+                    const tooltipOffsetY = -10;
+                    const tooltipX = x + tooltipOffsetX;
+                    const tooltipY = y + tooltipOffsetY;
+
+                    const textLength = test.name.length * 6.5;
+                    const tooltipWidth = Math.max(textLength + 20, 80);
+                    const tooltipHeight = 28;
+
+                    return (
+                      <g key={`tooltip-${test.id}`}>
+                        {/* Short connector stub from bubble to tooltip */}
+                        <line
+                          x1={x + (tooltipOffsetX > 0 ? 18 : -18)}
+                          y1={y}
+                          x2={tooltipX + (tooltipOffsetX > 0 ? 0 : tooltipWidth)}
+                          y2={tooltipY + tooltipHeight / 2}
+                          stroke={test.color}
+                          strokeWidth="1"
+                          opacity="0.4"
+                        />
+
+                        {/* Tooltip box */}
+                        <rect
+                          x={tooltipX}
+                          y={tooltipY}
+                          width={tooltipWidth}
+                          height={tooltipHeight}
+                          rx={4}
+                          fill={themeColors.cardBg}
+                          stroke={test.color}
+                          strokeWidth="2"
+                          filter="url(#tooltipShadow)"
+                        />
+
+                        {/* Test name in tooltip */}
+                        <text
+                          x={tooltipX + tooltipWidth / 2}
+                          y={tooltipY + tooltipHeight / 2 + 4}
+                          textAnchor="middle"
+                          fill={test.color}
+                          fontSize="11"
+                          fontWeight="700"
+                          fontFamily="Nunito, sans-serif"
+                        >
+                          {test.name}
+                        </text>
+                      </g>
+                    );
+                  });
+                })()}
+
+                {/* OLD LABEL SYSTEM (backup - hidden) */}
+                {false && (showLabelsOnCurve || typeof window !== 'undefined') && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
                   const labelPositionsData = getLabelPositionsWithCollisionAvoidance(stackedPositions);
 
@@ -3712,14 +4128,24 @@ function BellCurveApp() {
                   const isHovered = hoveredTestId === test.id;
                   const isHidden = hoveredTestId !== null && !isHovered;
                   const textColor = getContrastTextColor(test.color);
-                  
+
                   return (
-                    <g 
-                      key={test.id} 
+                    <g
+                      key={test.id}
                       className="score-marker"
-                      onMouseEnter={() => setHoveredTestId(test.id)}
-                      onMouseLeave={() => setHoveredTestId(null)}
-                      style={{ 
+                      onMouseEnter={() => {
+                        setHoveredTestId(test.id);
+                        if (labelDisplayMode === 'screen') {
+                          setHoveredBubbleForLabel(test.id);
+                        }
+                      }}
+                      onMouseLeave={() => {
+                        setHoveredTestId(null);
+                        if (labelDisplayMode === 'screen') {
+                          setHoveredBubbleForLabel(null);
+                        }
+                      }}
+                      style={{
                         cursor: 'pointer',
                         opacity: isHidden ? 0.15 : 1,
                         transition: 'opacity 0.2s ease',
@@ -3833,8 +4259,216 @@ function BellCurveApp() {
                   );
                 })}
 
-                {/* Test name labels with collision avoidance - always shown in print, toggle in screen view */}
-                {(showLabelsOnCurve || typeof window !== 'undefined') && (() => {
+                {/* PRESENTATION MODE: Column-based labels */}
+                {labelDisplayMode === 'presentation' && (() => {
+                  const stackedPositions = getStackedPositions(getVisibleTests());
+                  const { leftColumn, rightColumn, columnWidth, labelHeight, clusterPadding } = getColumnLayout(stackedPositions);
+
+                  return (
+                    <g>
+                      {/* Render left column clusters */}
+                      {leftColumn.map((cluster, clusterIdx) => (
+                        <g key={`left-cluster-${clusterIdx}`}>
+                          {/* Cluster box */}
+                          <rect
+                            x={cluster.x}
+                            y={cluster.y}
+                            width={cluster.width}
+                            height={cluster.height}
+                            rx={4}
+                            fill={themeColors.labelMaskBg}
+                            stroke={themeColors.border}
+                            strokeWidth="1.5"
+                            opacity="0.95"
+                          />
+
+                          {/* Labels inside cluster */}
+                          {cluster.tests.map((test, testIdx) => (
+                            <g key={`left-label-${test.id}`}>
+                              <text
+                                x={cluster.x + clusterPadding}
+                                y={cluster.y + clusterPadding + testIdx * labelHeight + labelHeight / 2 + 4}
+                                fill={test.color}
+                                fontSize="11"
+                                fontWeight="700"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.name}
+                              </text>
+                              <text
+                                x={cluster.x + cluster.width - clusterPadding}
+                                y={cluster.y + clusterPadding + testIdx * labelHeight + labelHeight / 2 + 4}
+                                textAnchor="end"
+                                fill={test.color}
+                                fontSize="11"
+                                fontWeight="600"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.score}
+                              </text>
+                            </g>
+                          ))}
+
+                          {/* Connector from cluster center to bubbles */}
+                          {cluster.bubblePositions.map((bubble, bubbleIdx) => {
+                            const clusterCenterY = cluster.y + cluster.height / 2;
+                            return (
+                              <path
+                                key={`left-connector-${bubble.test.id}`}
+                                d={generateColumnConnector(
+                                  bubble.x,
+                                  bubble.y,
+                                  cluster.x,
+                                  cluster.y,
+                                  cluster.height,
+                                  true,
+                                  cluster.width
+                                )}
+                                stroke={bubble.test.color}
+                                strokeWidth="1"
+                                fill="none"
+                                opacity="0.35"
+                              />
+                            );
+                          })}
+                        </g>
+                      ))}
+
+                      {/* Render right column clusters */}
+                      {rightColumn.map((cluster, clusterIdx) => (
+                        <g key={`right-cluster-${clusterIdx}`}>
+                          {/* Cluster box */}
+                          <rect
+                            x={cluster.x}
+                            y={cluster.y}
+                            width={cluster.width}
+                            height={cluster.height}
+                            rx={4}
+                            fill={themeColors.labelMaskBg}
+                            stroke={themeColors.border}
+                            strokeWidth="1.5"
+                            opacity="0.95"
+                          />
+
+                          {/* Labels inside cluster */}
+                          {cluster.tests.map((test, testIdx) => (
+                            <g key={`right-label-${test.id}`}>
+                              <text
+                                x={cluster.x + clusterPadding}
+                                y={cluster.y + clusterPadding + testIdx * labelHeight + labelHeight / 2 + 4}
+                                fill={test.color}
+                                fontSize="11"
+                                fontWeight="700"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.name}
+                              </text>
+                              <text
+                                x={cluster.x + cluster.width - clusterPadding}
+                                y={cluster.y + clusterPadding + testIdx * labelHeight + labelHeight / 2 + 4}
+                                textAnchor="end"
+                                fill={test.color}
+                                fontSize="11"
+                                fontWeight="600"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.score}
+                              </text>
+                            </g>
+                          ))}
+
+                          {/* Connector from cluster center to bubbles */}
+                          {cluster.bubblePositions.map((bubble, bubbleIdx) => {
+                            return (
+                              <path
+                                key={`right-connector-${bubble.test.id}`}
+                                d={generateColumnConnector(
+                                  bubble.x,
+                                  bubble.y,
+                                  cluster.x,
+                                  cluster.y,
+                                  cluster.height,
+                                  false,
+                                  cluster.width
+                                )}
+                                stroke={bubble.test.color}
+                                strokeWidth="1"
+                                fill="none"
+                                opacity="0.35"
+                              />
+                            );
+                          })}
+                        </g>
+                      ))}
+                    </g>
+                  );
+                })()}
+
+                {/* SCREEN MODE: Tooltip-style labels on hover/pin */}
+                {labelDisplayMode === 'screen' && (() => {
+                  const stackedPositions = getStackedPositions(getVisibleTests());
+
+                  return stackedPositions.map(({ test, x, y }) => {
+                    // Show label if pinned or if this bubble is hovered
+                    const showLabel = pinLabels || hoveredBubbleForLabel === test.id;
+
+                    if (!showLabel) return null;
+
+                    // Position tooltip near bubble (prefer right, fallback to left if too far right)
+                    const tooltipOffsetX = x > 650 ? -80 : 30;
+                    const tooltipOffsetY = -10;
+                    const tooltipX = x + tooltipOffsetX;
+                    const tooltipY = y + tooltipOffsetY;
+
+                    const textLength = test.name.length * 6.5;
+                    const tooltipWidth = Math.max(textLength + 20, 80);
+                    const tooltipHeight = 28;
+
+                    return (
+                      <g key={`tooltip-${test.id}`}>
+                        {/* Short connector stub from bubble to tooltip */}
+                        <line
+                          x1={x + (tooltipOffsetX > 0 ? 18 : -18)}
+                          y1={y}
+                          x2={tooltipX + (tooltipOffsetX > 0 ? 0 : tooltipWidth)}
+                          y2={tooltipY + tooltipHeight / 2}
+                          stroke={test.color}
+                          strokeWidth="1"
+                          opacity="0.4"
+                        />
+
+                        {/* Tooltip box */}
+                        <rect
+                          x={tooltipX}
+                          y={tooltipY}
+                          width={tooltipWidth}
+                          height={tooltipHeight}
+                          rx={4}
+                          fill={themeColors.cardBg}
+                          stroke={test.color}
+                          strokeWidth="2"
+                          filter="url(#tooltipShadow)"
+                        />
+
+                        {/* Test name in tooltip */}
+                        <text
+                          x={tooltipX + tooltipWidth / 2}
+                          y={tooltipY + tooltipHeight / 2 + 4}
+                          textAnchor="middle"
+                          fill={test.color}
+                          fontSize="11"
+                          fontWeight="700"
+                          fontFamily="Nunito, sans-serif"
+                        >
+                          {test.name}
+                        </text>
+                      </g>
+                    );
+                  });
+                })()}
+
+                {/* OLD LABEL SYSTEM (backup - hidden) */}
+                {false && (showLabelsOnCurve || typeof window !== 'undefined') && (() => {
                   const stackedPositions = getStackedPositions(getVisibleTests());
                   const labelPositionsData = getLabelPositionsWithCollisionAvoidance(stackedPositions);
 
