@@ -15,10 +15,26 @@
         #root {
             min-height: 100vh;
         }
-    </style>
+</style>
 </head>
 <body>
     <div id="root"></div>
+    <script>
+      window.__bellCurveAppMounted = false;
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          const root = document.getElementById('root');
+          if (!window.__bellCurveAppMounted && root && root.children.length === 0) {
+            root.innerHTML = `
+              <div style="padding:24px;margin:32px auto;max-width:640px;font-family:Nunito, sans-serif;background:#ffffff;color:#1a1a2e;border-radius:12px;border:1px solid #e0e0e0;box-shadow:0 12px 30px rgba(0,0,0,0.08);">
+                <h2 style="margin-top:0;">App failed to load</h2>
+                <p style="margin-bottom:0;">Please check the browser console for errors and verify that React and Babel loaded correctly.</p>
+              </div>
+            `;
+          }
+        }, 1500);
+      });
+    </script>
     <script type="text/babel">
 
 
@@ -318,6 +334,54 @@ const getContrastTextColor = (hexColor) => {
   return luminance > 0.5 ? '#1a1a2e' : '#ffffff';
 };
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('BellCurveApp error:', error, info);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{
+          padding: '24px',
+          margin: '32px auto',
+          maxWidth: '640px',
+          fontFamily: 'Nunito, sans-serif',
+          background: '#ffffff',
+          color: '#1a1a2e',
+          borderRadius: '12px',
+          border: '1px solid #e0e0e0',
+          boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
+        }}>
+          <h2 style={{ marginTop: 0 }}>App failed to load</h2>
+          <p style={{ marginBottom: 0 }}>
+            Please refresh the page or contact support if this keeps happening.
+          </p>
+          <pre style={{
+            marginTop: '16px',
+            whiteSpace: 'pre-wrap',
+            fontSize: '12px',
+            color: '#6b7280',
+          }}>
+            {String(this.state.error)}
+          </pre>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function BellCurveApp() {
   const [mode, setMode] = React.useState('input');
   const [tests, setTests] = React.useState([]);
@@ -346,7 +410,7 @@ function BellCurveApp() {
   const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
 
   // Bell curve label display options - simplified
-  const [pinnedTooltipId, setPinnedTooltipId] = React.useState(null); // Track clicked/tapped marker for pinned tooltip
+  const [activeTooltipId, setActiveTooltipId] = React.useState(null); // Touch tooltip state
   const [isPrintMode, setIsPrintMode] = React.useState(false); // Print/PDF mode with numbered markers
   const [showScoresList, setShowScoresList] = React.useState(true); // Show scores list panel
   const [sortScoresAsc, setSortScoresAsc] = React.useState(true); // Sort scores ascending
@@ -365,7 +429,7 @@ function BellCurveApp() {
   const [bellCurveColor, setBellCurveColor] = React.useState('#667eea');
   const [showThemePanel, setShowThemePanel] = React.useState(false);
 
-  // (Removed: Label customization state - no longer needed for simplified tooltip approach)
+  const safeTests = Array.isArray(tests) ? tests : [];
 
   // Theme colors based on current theme
   const themeColors = React.useMemo(() => {
@@ -489,6 +553,25 @@ function BellCurveApp() {
       setIsPrintPreview(false);
     }
   }, [mode]);
+
+  React.useEffect(() => {
+    const handlePointerDown = (event) => {
+      if (event.pointerType && event.pointerType !== 'touch' && event.pointerType !== 'pen') {
+        return;
+      }
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        setActiveTooltipId(null);
+        return;
+      }
+      const marker = target.closest('.score-marker');
+      if (!marker) {
+        setActiveTooltipId(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    return () => document.removeEventListener('pointerdown', handlePointerDown);
+  }, []);
 
   // Save current profile
   const saveCurrentProfile = () => {
@@ -1625,13 +1708,6 @@ function BellCurveApp() {
             📁 Profiles
           </button>
           <button
-            className="mode-btn inactive no-print"
-            onClick={() => setShowLabelsPanel(true)}
-            title="Customize label styles and positions"
-          >
-            🏷️ Labels
-          </button>
-          <button
             className={`mode-btn ${mode === 'input' ? 'active' : 'inactive'} no-print`}
             onClick={() => setMode('input')}
           >
@@ -1812,208 +1888,6 @@ function BellCurveApp() {
               <button
                 className="control-btn"
                 onClick={() => setShowBrandingPanel(false)}
-                style={{ padding: '14px 28px' }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Labels Customization Panel */}
-      {showLabelsPanel && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.8)',
-          backdropFilter: 'blur(10px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '20px',
-        }} className="no-print">
-          <div style={{
-            background: themeColors.panelBg,
-            borderRadius: '24px',
-            padding: '40px',
-            maxWidth: '600px',
-            width: '100%',
-            border: `1px solid ${themeColors.cardBorder}`,
-            maxHeight: '80vh',
-            overflowY: 'auto',
-          }}>
-            <h2 style={{
-              margin: '0 0 30px 0',
-              fontSize: '28px',
-              fontWeight: 700,
-              color: themeColors.heading,
-            }}>
-              🏷️ Label Customization
-            </h2>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Border Radius */}
-              <div>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: themeColors.textSecondary,
-                }}>
-                  Border Radius: {labelStyles.borderRadius}px
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="16"
-                  step="1"
-                  value={labelStyles.borderRadius}
-                  onChange={(e) => setLabelStyles({ ...labelStyles, borderRadius: parseInt(e.target.value) })}
-                  style={{
-                    width: '100%',
-                    height: '8px',
-                    borderRadius: '4px',
-                    background: themeColors.inputBg,
-                    cursor: 'pointer',
-                  }}
-                />
-              </div>
-
-              {/* Padding */}
-              <div>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: themeColors.textSecondary,
-                }}>
-                  Padding: {labelStyles.padding}px
-                </label>
-                <input
-                  type="range"
-                  min="4"
-                  max="16"
-                  step="1"
-                  value={labelStyles.padding}
-                  onChange={(e) => setLabelStyles({ ...labelStyles, padding: parseInt(e.target.value) })}
-                  style={{
-                    width: '100%',
-                    height: '8px',
-                    borderRadius: '4px',
-                    background: themeColors.inputBg,
-                    cursor: 'pointer',
-                  }}
-                />
-              </div>
-
-              {/* Max Width */}
-              <div>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: themeColors.textSecondary,
-                }}>
-                  Max Width: {labelStyles.maxWidth}px
-                </label>
-                <input
-                  type="range"
-                  min="100"
-                  max="400"
-                  step="10"
-                  value={labelStyles.maxWidth}
-                  onChange={(e) => setLabelStyles({ ...labelStyles, maxWidth: parseInt(e.target.value) })}
-                  style={{
-                    width: '100%',
-                    height: '8px',
-                    borderRadius: '4px',
-                    background: themeColors.inputBg,
-                    cursor: 'pointer',
-                  }}
-                />
-              </div>
-
-              {/* Font Size */}
-              <div>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '8px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: themeColors.textSecondary,
-                }}>
-                  Font Size: {labelStyles.fontSize}px
-                </label>
-                <input
-                  type="range"
-                  min="8"
-                  max="14"
-                  step="1"
-                  value={labelStyles.fontSize}
-                  onChange={(e) => setLabelStyles({ ...labelStyles, fontSize: parseInt(e.target.value) })}
-                  style={{
-                    width: '100%',
-                    height: '8px',
-                    borderRadius: '4px',
-                    background: themeColors.inputBg,
-                    cursor: 'pointer',
-                  }}
-                />
-              </div>
-
-              {/* Reset Positions Button */}
-              <div style={{
-                padding: '20px',
-                background: themeColors.cardBgAlt,
-                borderRadius: '12px',
-                border: `1px solid ${themeColors.cardBorder}`,
-              }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '12px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: themeColors.textSecondary,
-                }}>
-                  Label Positions
-                </label>
-                <p style={{
-                  margin: '0 0 12px 0',
-                  fontSize: '12px',
-                  color: themeColors.textMuted,
-                  lineHeight: 1.5,
-                }}>
-                  Drag labels on the chart to reposition them. Click the button below to reset all labels to their default positions.
-                </p>
-                <button
-                  className="control-btn"
-                  onClick={() => setLabelPositions({})}
-                  style={{ width: '100%' }}
-                >
-                  Reset Label Positions
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', marginTop: '30px' }}>
-              <button
-                className="add-btn"
-                onClick={() => setShowLabelsPanel(false)}
-                style={{ flex: 1 }}
-              >
-                Save & Close
-              </button>
-              <button
-                className="control-btn"
-                onClick={() => setShowLabelsPanel(false)}
                 style={{ padding: '14px 28px' }}
               >
                 Cancel
@@ -2918,7 +2792,7 @@ function BellCurveApp() {
                 </svg>
 
                 {/* Legend */}
-                {tests.length > 0 && (
+                {safeTests.length > 0 && (
                   <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -3062,7 +2936,14 @@ function BellCurveApp() {
                 </div>
               </div>
               
-              <svg viewBox="0 0 800 480" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
+              <div style={{
+                display: 'flex',
+                gap: '24px',
+                alignItems: 'flex-start',
+                flexWrap: 'wrap',
+              }}>
+                <div style={{ flex: '1 1 520px', minWidth: '320px' }}>
+                  <svg viewBox="0 0 800 480" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
                 {/* Grid lines */}
                 {[55, 70, 85, 100, 115, 130, 145].map((score) => (
                   <line
@@ -3163,74 +3044,6 @@ function BellCurveApp() {
                 {/* REMOVED OLD LABEL CODE - was calling non-existent functions */}
 
 
-                {/* TOOLTIPS: Show on hover or when pinned */}
-                {getStackedPositions(getVisibleTests()).map(({ test, x, y }) => {
-                  const showTooltip = (hoveredTestId === test.id || pinnedTooltipId === test.id) && !isPrintMode;
-                  if (!showTooltip) return null;
-
-                  // Position tooltip near marker
-                  const tooltipOffsetX = x > 650 ? -90 : 35;
-                  const tooltipOffsetY = -40;
-                  const tooltipX = x + tooltipOffsetX;
-                  const tooltipY = y + tooltipOffsetY;
-                  const tooltipWidth = 140;
-                  const tooltipHeight = 70;
-
-                  return (
-                    <g key={`tooltip-${test.id}`}>
-                      {/* Tooltip box with shadow */}
-                      <rect
-                        x={tooltipX}
-                        y={tooltipY}
-                        width={tooltipWidth}
-                        height={tooltipHeight}
-                        rx={6}
-                        fill={themeColors.cardBg}
-                        stroke={test.color}
-                        strokeWidth="2.5"
-                        filter="url(#tooltipShadow)"
-                        opacity="0.98"
-                      />
-                      {/* Test name */}
-                      <text
-                        x={tooltipX + tooltipWidth / 2}
-                        y={tooltipY + 20}
-                        textAnchor="middle"
-                        fill={test.color}
-                        fontSize="12"
-                        fontWeight="800"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        {test.name}
-                      </text>
-                      {/* Score */}
-                      <text
-                        x={tooltipX + tooltipWidth / 2}
-                        y={tooltipY + 38}
-                        textAnchor="middle"
-                        fill={themeColors.text}
-                        fontSize="14"
-                        fontWeight="700"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        Score: {test.score}
-                      </text>
-                      {/* Descriptor */}
-                      <text
-                        x={tooltipX + tooltipWidth / 2}
-                        y={tooltipY + 55}
-                        textAnchor="middle"
-                        fill={themeColors.textMuted}
-                        fontSize="10"
-                        fontWeight="600"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        {getScoreDescriptor(test.score)}
-                      </text>
-                    </g>
-                  );
-                })}
-
                 {/* PRINT MODE: Numbered markers */}
                 {isPrintMode && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index) => {
                   const markerNumber = index + 1;
@@ -3263,6 +3076,7 @@ function BellCurveApp() {
                 {/* Score markers with stacking and hover */}
                 {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
                   const isHovered = hoveredTestId === test.id;
+                  const isTooltipVisible = isHovered || activeTooltipId === test.id;
                   const isHidden = hoveredTestId !== null && !isHovered;
                   const textColor = getContrastTextColor(test.color);
 
@@ -3272,12 +3086,17 @@ function BellCurveApp() {
                       className="score-marker"
                       onMouseEnter={() => setHoveredTestId(test.id)}
                       onMouseLeave={() => setHoveredTestId(null)}
-                      onClick={() => setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id)}
+                      onPointerDown={(event) => {
+                        if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+                          setActiveTooltipId(activeTooltipId === test.id ? null : test.id);
+                        }
+                      }}
                       style={{
                         cursor: 'pointer',
                         opacity: isHidden ? 0.15 : 1,
                         transition: 'opacity 0.2s ease',
                       }}
+                      data-test-id={test.id}
                     >
                       {/* Vertical line to base of curve */}
                       <line
@@ -3328,7 +3147,7 @@ function BellCurveApp() {
                       </text>
                       
                       {/* Tooltip on hover */}
-                      {isHovered && (
+                      {isTooltipVisible && (
                         <g className="tooltip">
                           {/* Tooltip background - dark background for better contrast */}
                           <rect
@@ -3388,10 +3207,100 @@ function BellCurveApp() {
                 })}
 
                 {/* REMOVED OLD LABEL CODE - was calling non-existent functions */}
+                  </svg>
+                </div>
 
+                {/* Test Selection Panel */}
+                {tests.length > 0 && (
+                  <div style={{
+                    background: themeColors.cardBg,
+                    borderRadius: '20px',
+                    padding: '28px',
+                    flex: '1 1 280px',
+                    minWidth: '260px',
+                    border: `1px solid ${themeColors.cardBorder}`,
+                  }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '20px',
+                  }}>
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: '18px',
+                      fontWeight: 700,
+                      color: themeColors.heading,
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                    }}>
+                      📊 Select Tests to Display
+                    </h3>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button className="control-btn" onClick={showAllTests}>
+                        Show All
+                      </button>
+                      <button className="control-btn" onClick={hideAllTests}>
+                        Hide All
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: '12px',
+                  }}>
+                    {safeTests.map((test) => {
+                      const isChecked = visibleTestIds.has(test.id);
+                      return (
+                        <div
+                          key={test.id}
+                          className={`checkbox-card ${isChecked ? 'checked' : ''}`}
+                          onClick={() => toggleTestVisibility(test.id)}
+                          style={{ color: test.color }}
+                        >
+                          <div 
+                            className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
+                            style={{ borderColor: isChecked ? test.color : undefined, background: isChecked ? test.color : 'transparent' }}
+                          >
+                            {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color) }}>✓</span>}
+                          </div>
+                          <div
+                            style={{
+                              width: '12px',
+                              height: '36px',
+                              borderRadius: '6px',
+                              backgroundColor: test.color,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{
+                              fontWeight: 700,
+                              fontSize: '15px',
+                              color: themeColors.text,
+                              marginBottom: '2px',
+                            }}>
+                              {test.name}
+                            </div>
+                            <div style={{
+                              fontSize: '13px',
+                              color: themeColors.textMuted,
+                            }}>
+                              Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))}) • {getScoreDescription(test.score)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  </div>
+                )}
+              </div>
 
               {/* SCORES LIST PANEL */}
-              {showScoresList && tests.length > 0 && (
+              {showScoresList && safeTests.length > 0 && (
                 <div style={{
                   marginTop: '24px',
                   padding: '16px',
@@ -3437,29 +3346,20 @@ function BellCurveApp() {
                     gap: '8px',
                   }}>
                     {(() => {
-                      const sortedTests = [...tests].sort((a, b) =>
+                      const sortedTests = [...safeTests].sort((a, b) =>
                         sortScoresAsc ? a.score - b.score : b.score - a.score
                       );
                       return sortedTests.map((test, index) => (
                         <div
                           key={test.id}
-                          onClick={() => {
-                            setPinnedTooltipId(pinnedTooltipId === test.id ? null : test.id);
-                            // Scroll marker into view if needed
-                            const marker = document.querySelector(`.score-marker[data-test-id="${test.id}"]`);
-                            if (marker) {
-                              marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            }
-                          }}
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '12px',
                             padding: '10px 12px',
-                            background: pinnedTooltipId === test.id ? `${test.color}15` : themeColors.cardBgAlt,
+                            background: themeColors.cardBgAlt,
                             borderRadius: '6px',
-                            cursor: 'pointer',
-                            border: `2px solid ${pinnedTooltipId === test.id ? test.color : 'transparent'}`,
+                            border: `2px solid transparent`,
                             transition: 'all 0.2s ease',
                           }}
                         >
@@ -3523,93 +3423,6 @@ function BellCurveApp() {
                 </div>
               )}
             </div>
-
-            {/* Test Selection Panel */}
-            {tests.length > 0 && (
-              <div style={{
-                background: themeColors.cardBg,
-                borderRadius: '20px',
-                padding: '28px',
-                marginBottom: '32px',
-                border: `1px solid ${themeColors.cardBorder}`,
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '20px',
-                }}>
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '18px',
-                    fontWeight: 700,
-                    color: themeColors.heading,
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                  }}>
-                    📊 Select Tests to Display
-                  </h3>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className="control-btn" onClick={showAllTests}>
-                      Show All
-                    </button>
-                    <button className="control-btn" onClick={hideAllTests}>
-                      Hide All
-                    </button>
-                  </div>
-                </div>
-                
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                  gap: '12px',
-                }}>
-                  {tests.map((test) => {
-                    const isChecked = visibleTestIds.has(test.id);
-                    return (
-                      <div
-                        key={test.id}
-                        className={`checkbox-card ${isChecked ? 'checked' : ''}`}
-                        onClick={() => toggleTestVisibility(test.id)}
-                        style={{ color: test.color }}
-                      >
-                        <div 
-                          className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
-                          style={{ borderColor: isChecked ? test.color : undefined, background: isChecked ? test.color : 'transparent' }}
-                        >
-                          {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color) }}>✓</span>}
-                        </div>
-                        <div
-                          style={{
-                            width: '12px',
-                            height: '36px',
-                            borderRadius: '6px',
-                            backgroundColor: test.color,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontWeight: 700,
-                            fontSize: '15px',
-                            color: themeColors.text,
-                            marginBottom: '2px',
-                          }}>
-                            {test.name}
-                          </div>
-                          <div style={{
-                            fontSize: '13px',
-                            color: themeColors.textMuted,
-                          }}>
-                            Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))}) • {getScoreDescription(test.score)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Score Summary Cards */}
             {getVisibleTests().length > 0 && (
@@ -3896,10 +3709,36 @@ function BellCurveApp() {
   );
 }
 
+        const rootElement = document.getElementById('root');
+        const showFatalError = (error) => {
+          if (!rootElement || rootElement.dataset.errorDisplayed) {
+            return;
+          }
+          rootElement.dataset.errorDisplayed = 'true';
+          rootElement.innerHTML = `
+            <div style="padding:24px;margin:32px auto;max-width:640px;font-family:Nunito, sans-serif;background:#ffffff;color:#1a1a2e;border-radius:12px;border:1px solid #e0e0e0;box-shadow:0 12px 30px rgba(0,0,0,0.08);">
+              <h2 style="margin-top:0;">App failed to load</h2>
+              <p style="margin-bottom:0;">Please refresh the page or contact support if this keeps happening.</p>
+              <pre style="margin-top:16px;white-space:pre-wrap;font-size:12px;color:#6b7280;">${String(error)}</pre>
+            </div>
+          `;
+        };
 
+        window.addEventListener('error', (event) => {
+          showFatalError(event.error || event.message);
+        });
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<BellCurveApp />);
+        window.addEventListener('unhandledrejection', (event) => {
+          showFatalError(event.reason || 'Unknown error');
+        });
+
+        const root = ReactDOM.createRoot(rootElement);
+        root.render(
+          <ErrorBoundary>
+            <BellCurveApp />
+          </ErrorBoundary>
+        );
+        window.__bellCurveAppMounted = true;
     </script>
 </body>
 </html>
