@@ -3397,6 +3397,93 @@ function BellCurveApp() {
                 {/* REMOVED OLD LABEL CODE - was calling non-existent functions */}
               </svg>
 
+              {/* Test Selection Panel */}
+              {tests.length > 0 && (
+                <div style={{
+                  background: themeColors.cardBg,
+                  borderRadius: '20px',
+                  padding: '28px',
+                  marginBottom: '32px',
+                  border: `1px solid ${themeColors.cardBorder}`,
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '20px',
+                  }}>
+                    <h3 style={{
+                      margin: 0,
+                      fontSize: '18px',
+                      fontWeight: 700,
+                      color: themeColors.heading,
+                      letterSpacing: '1px',
+                      textTransform: 'uppercase',
+                    }}>
+                      📊 Select Tests to Display
+                    </h3>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <button className="control-btn" onClick={showAllTests}>
+                        Show All
+                      </button>
+                      <button className="control-btn" onClick={hideAllTests}>
+                        Hide All
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: '12px',
+                  }}>
+                    {tests.map((test) => {
+                      const isChecked = visibleTestIds.has(test.id);
+                      return (
+                        <div
+                          key={test.id}
+                          className={`checkbox-card ${isChecked ? 'checked' : ''}`}
+                          onClick={() => toggleTestVisibility(test.id)}
+                          style={{ color: test.color }}
+                        >
+                          <div 
+                            className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
+                            style={{ borderColor: isChecked ? test.color : undefined, background: isChecked ? test.color : 'transparent' }}
+                          >
+                            {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color) }}>✓</span>}
+                          </div>
+                          <div
+                            style={{
+                              width: '12px',
+                              height: '36px',
+                              borderRadius: '6px',
+                              backgroundColor: test.color,
+                              flexShrink: 0,
+                            }}
+                          />
+                          <div style={{ flex: 1 }}>
+                            <div style={{
+                              fontWeight: 700,
+                              fontSize: '15px',
+                              color: themeColors.text,
+                              marginBottom: '2px',
+                            }}>
+                              {test.name}
+                            </div>
+                            <div style={{
+                              fontSize: '13px',
+                              color: themeColors.textMuted,
+                            }}>
+                              Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))}) • {getScoreDescription(test.score)}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* SCORES LIST PANEL */}
               {showScoresList && tests.length > 0 && (
                 <div style={{
@@ -3521,93 +3608,6 @@ function BellCurveApp() {
                 </div>
               )}
             </div>
-
-            {/* Test Selection Panel */}
-            {tests.length > 0 && (
-              <div style={{
-                background: themeColors.cardBg,
-                borderRadius: '20px',
-                padding: '28px',
-                marginBottom: '32px',
-                border: `1px solid ${themeColors.cardBorder}`,
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '20px',
-                }}>
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '18px',
-                    fontWeight: 700,
-                    color: themeColors.heading,
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                  }}>
-                    📊 Select Tests to Display
-                  </h3>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className="control-btn" onClick={showAllTests}>
-                      Show All
-                    </button>
-                    <button className="control-btn" onClick={hideAllTests}>
-                      Hide All
-                    </button>
-                  </div>
-                </div>
-                
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                  gap: '12px',
-                }}>
-                  {tests.map((test) => {
-                    const isChecked = visibleTestIds.has(test.id);
-                    return (
-                      <div
-                        key={test.id}
-                        className={`checkbox-card ${isChecked ? 'checked' : ''}`}
-                        onClick={() => toggleTestVisibility(test.id)}
-                        style={{ color: test.color }}
-                      >
-                        <div 
-                          className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
-                          style={{ borderColor: isChecked ? test.color : undefined, background: isChecked ? test.color : 'transparent' }}
-                        >
-                          {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color) }}>✓</span>}
-                        </div>
-                        <div
-                          style={{
-                            width: '12px',
-                            height: '36px',
-                            borderRadius: '6px',
-                            backgroundColor: test.color,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontWeight: 700,
-                            fontSize: '15px',
-                            color: themeColors.text,
-                            marginBottom: '2px',
-                          }}>
-                            {test.name}
-                          </div>
-                          <div style={{
-                            fontSize: '13px',
-                            color: themeColors.textMuted,
-                          }}>
-                            Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))}) • {getScoreDescription(test.score)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Score Summary Cards */}
             {getVisibleTests().length > 0 && (
@@ -3908,6 +3908,11 @@ function BellCurveApp() {
             </div>
           `;
         };
+
+        window.addEventListener('error', (event) => {
+          showFatalError(event.error || event.message);
+        });
+
 
         window.addEventListener('error', (event) => {
           showFatalError(event.error || event.message);
