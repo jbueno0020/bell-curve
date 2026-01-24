@@ -3194,20 +3194,8 @@ function BellCurveApp() {
                   </svg>
                 </div>
 
-                {/* Test Selection Panel */}
-                {tests.length > 0 && (
-                  <div style={{
-                    background: themeColors.cardBg,
-                    borderRadius: '20px',
-                    padding: '28px',
-                    flex: '1 1 280px',
-                    minWidth: '260px',
-                    border: `1px solid ${themeColors.cardBorder}`,
-                  }}>
-              </svg>
-
               {/* Test Selection Panel */}
-              {tests.length > 0 && (
+              {safeTests.length > 0 && (
                 <div style={{
                   background: themeColors.cardBg,
                   borderRadius: '20px',
@@ -3290,9 +3278,6 @@ function BellCurveApp() {
                       );
                     })}
                   </div>
-                  </div>
-                )}
-              </div>
                 </div>
               )}
 
