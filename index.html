@@ -15,7 +15,7 @@
         #root {
             min-height: 100vh;
         }
-    </style>
+</style>
 </head>
 <body>
     <div id="root"></div>
@@ -67,6 +67,19 @@
             showLoadError(issues);
           }
         }, 3000);
+      window.__bellCurveAppMounted = false;
+      window.addEventListener('load', () => {
+        setTimeout(() => {
+          const root = document.getElementById('root');
+          if (!window.__bellCurveAppMounted && root && root.children.length === 0) {
+            root.innerHTML = `
+              <div style="padding:24px;margin:32px auto;max-width:640px;font-family:Nunito, sans-serif;background:#ffffff;color:#1a1a2e;border-radius:12px;border:1px solid #e0e0e0;box-shadow:0 12px 30px rgba(0,0,0,0.08);">
+                <h2 style="margin-top:0;">App failed to load</h2>
+                <p style="margin-bottom:0;">Please check the browser console for errors and verify that React and Babel loaded correctly.</p>
+              </div>
+            `;
+          }
+        }, 1500);
       });
     </script>
     <script type="text/babel">
