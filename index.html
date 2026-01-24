@@ -3723,28 +3723,20 @@ function BellCurveApp() {
           `;
         };
 
-        window.addEventListener('error', (event) => {
-          showFatalError(event.error || event.message);
-        });
-
-        window.addEventListener('unhandledrejection', (event) => {
-          showFatalError(event.reason || 'Unknown error');
-        });
-
-        window.addEventListener('error', (event) => {
-          showFatalError(event.error || event.message);
-        });
-
-        window.addEventListener('unhandledrejection', (event) => {
-          showFatalError(event.reason || 'Unknown error');
-        });
-
         const root = ReactDOM.createRoot(rootElement);
         root.render(
           <ErrorBoundary>
             <BellCurveApp />
           </ErrorBoundary>
         );
+
+        window.addEventListener('error', (event) => {
+          showFatalError(event.error || event.message);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+          showFatalError(event.reason || 'Unknown error');
+        });
     </script>
 </body>
 </html>
