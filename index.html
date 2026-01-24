@@ -3210,16 +3210,15 @@ function BellCurveApp() {
                   </svg>
                 </div>
 
-                {/* Test Selection Panel */}
-                {tests.length > 0 && (
-                  <div style={{
-                    background: themeColors.cardBg,
-                    borderRadius: '20px',
-                    padding: '28px',
-                    flex: '1 1 280px',
-                    minWidth: '260px',
-                    border: `1px solid ${themeColors.cardBorder}`,
-                  }}>
+              {/* Test Selection Panel */}
+              {safeTests.length > 0 && (
+                <div style={{
+                  background: themeColors.cardBg,
+                  borderRadius: '20px',
+                  padding: '28px',
+                  marginBottom: '32px',
+                  border: `1px solid ${themeColors.cardBorder}`,
+                }}>
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -3295,9 +3294,8 @@ function BellCurveApp() {
                       );
                     })}
                   </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* SCORES LIST PANEL */}
               {showScoresList && safeTests.length > 0 && (
@@ -3738,7 +3736,6 @@ function BellCurveApp() {
             <BellCurveApp />
           </ErrorBoundary>
         );
-        window.__bellCurveAppMounted = true;
     </script>
 </body>
 </html>
