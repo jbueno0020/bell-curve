@@ -15,73 +15,10 @@
         #root {
             min-height: 100vh;
         }
-</style>
+    </style>
 </head>
 <body>
     <div id="root"></div>
-    <script>
-      // Enhanced error detection and CDN load verification
-      window.__bellCurveAppMounted = false;
-
-      // Check if CDN libraries loaded
-      function checkDependencies() {
-        const issues = [];
-        if (typeof React === 'undefined') issues.push('React library failed to load');
-        if (typeof ReactDOM === 'undefined') issues.push('ReactDOM library failed to load');
-        if (typeof Babel === 'undefined') issues.push('Babel library failed to load');
-        return issues;
-      }
-
-      // Show error message with details
-      function showLoadError(issues) {
-        const root = document.getElementById('root');
-        if (!root) return;
-
-        const issueList = issues.length > 0
-          ? `<ul style="text-align:left;margin:16px 0;padding-left:20px;">${issues.map(i => `<li>${i}</li>`).join('')}</ul>`
-          : '';
-
-        root.innerHTML = `
-          <div style="padding:24px;margin:32px auto;max-width:640px;font-family:Nunito, sans-serif;background:#ffffff;color:#1a1a2e;border-radius:12px;border:1px solid #e0e0e0;box-shadow:0 12px 30px rgba(0,0,0,0.08);">
-            <h2 style="margin-top:0;color:#dc3545;">⚠️ App Failed to Load</h2>
-            ${issueList}
-            <p style="margin:16px 0 8px 0;"><strong>Troubleshooting:</strong></p>
-            <ul style="text-align:left;margin:8px 0;padding-left:20px;font-size:14px;line-height:1.6;">
-              <li>Check your internet connection</li>
-              <li>Verify that unpkg.com is accessible</li>
-              <li>Try refreshing the page</li>
-              <li>Check browser console for errors (F12)</li>
-            </ul>
-            <p style="margin-top:16px;font-size:12px;color:#6c757d;">If issues persist, this may be a GitHub Pages configuration problem.</p>
-          </div>
-        `;
-      }
-
-      // Wait for page load, then check if app mounted
-      window.addEventListener('load', () => {
-        // Give Babel time to transpile and React time to render (increased to 3s for slow connections)
-        setTimeout(() => {
-          const root = document.getElementById('root');
-          if (!window.__bellCurveAppMounted && root && root.children.length === 0) {
-            const issues = checkDependencies();
-            showLoadError(issues);
-          }
-        }, 3000);
-      window.__bellCurveAppMounted = false;
-      window.addEventListener('load', () => {
-        setTimeout(() => {
-          const root = document.getElementById('root');
-          if (!window.__bellCurveAppMounted && root && root.children.length === 0) {
-            root.innerHTML = `
-              <div style="padding:24px;margin:32px auto;max-width:640px;font-family:Nunito, sans-serif;background:#ffffff;color:#1a1a2e;border-radius:12px;border:1px solid #e0e0e0;box-shadow:0 12px 30px rgba(0,0,0,0.08);">
-                <h2 style="margin-top:0;">App failed to load</h2>
-                <p style="margin-bottom:0;">Please check the browser console for errors and verify that React and Babel loaded correctly.</p>
-              </div>
-            `;
-          }
-        }, 1500);
-      });
-    </script>
     <script type="text/babel">
 
 
@@ -381,54 +318,6 @@ const getContrastTextColor = (hexColor) => {
   return luminance > 0.5 ? '#1a1a2e' : '#ffffff';
 };
 
-class ErrorBoundary extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { error: null };
-  }
-
-  static getDerivedStateFromError(error) {
-    return { error };
-  }
-
-  componentDidCatch(error, info) {
-    console.error('BellCurveApp error:', error, info);
-  }
-
-  render() {
-    if (this.state.error) {
-      return (
-        <div style={{
-          padding: '24px',
-          margin: '32px auto',
-          maxWidth: '640px',
-          fontFamily: 'Nunito, sans-serif',
-          background: '#ffffff',
-          color: '#1a1a2e',
-          borderRadius: '12px',
-          border: '1px solid #e0e0e0',
-          boxShadow: '0 12px 30px rgba(0,0,0,0.08)',
-        }}>
-          <h2 style={{ marginTop: 0 }}>App failed to load</h2>
-          <p style={{ marginBottom: 0 }}>
-            Please refresh the page or contact support if this keeps happening.
-          </p>
-          <pre style={{
-            marginTop: '16px',
-            whiteSpace: 'pre-wrap',
-            fontSize: '12px',
-            color: '#6b7280',
-          }}>
-            {String(this.state.error)}
-          </pre>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
-}
-
 function BellCurveApp() {
   const [mode, setMode] = React.useState('input');
   const [tests, setTests] = React.useState([]);
@@ -456,11 +345,8 @@ function BellCurveApp() {
   const [currentProfileId, setCurrentProfileId] = React.useState(null);
   const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
 
-  // Bell curve label display options - simplified
-  const [activeTooltipId, setActiveTooltipId] = React.useState(null); // Touch tooltip state
-  const [isPrintMode, setIsPrintMode] = React.useState(false); // Print/PDF mode with numbered markers
-  const [showScoresList, setShowScoresList] = React.useState(true); // Show scores list panel
-  const [sortScoresAsc, setSortScoresAsc] = React.useState(true); // Sort scores ascending
+  // Bell curve label display options
+  const [showLabelsOnCurve, setShowLabelsOnCurve] = React.useState(false);
 
   // Autocomplete state
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
@@ -476,57 +362,33 @@ function BellCurveApp() {
   const [bellCurveColor, setBellCurveColor] = React.useState('#667eea');
   const [showThemePanel, setShowThemePanel] = React.useState(false);
 
-  const safeTests = Array.isArray(tests) ? tests : [];
-
   // Theme colors based on current theme
   const themeColors = React.useMemo(() => {
     if (theme === 'light') {
       return {
         background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-        cardBg: '#ffffff',
-        cardBgAlt: 'rgba(248, 249, 250, 0.95)',
-        cardBorder: 'rgba(0, 0, 0, 0.15)',
-        labelMaskBg: '#ffffff',
+        cardBg: 'rgba(255, 255, 255, 0.9)',
+        cardBorder: 'rgba(0, 0, 0, 0.1)',
         text: '#1a1a2e',
-        textSecondary: '#495057',
-        textMuted: '#6c757d',
-        heading: '#212529',
-        inputBg: '#ffffff',
-        inputBorder: '#ced4da',
-        inputBorderFocus: '#667eea',
-        inputText: '#212529',
-        inputPlaceholder: '#6c757d',
+        textSecondary: 'rgba(26, 26, 46, 0.7)',
+        textMuted: 'rgba(26, 26, 46, 0.5)',
+        inputBg: 'rgba(255, 255, 255, 0.95)',
+        inputBorder: 'rgba(0, 0, 0, 0.2)',
         chartBg: '#ffffff',
-        chartText: '#495057',
-        svgText: '#495057',
         panelBg: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-        hoverBg: 'rgba(102, 126, 234, 0.08)',
-        infoText: '#495057',
-        infoPanel: '#f8f9fa',
       };
     } else {
       return {
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
         cardBg: 'rgba(255, 255, 255, 0.04)',
-        cardBgAlt: 'rgba(255, 255, 255, 0.06)',
         cardBorder: 'rgba(255, 255, 255, 0.08)',
-        labelMaskBg: '#1a1a2e',
         text: '#f8f9fa',
         textSecondary: 'rgba(255, 255, 255, 0.85)',
         textMuted: 'rgba(255, 255, 255, 0.5)',
-        heading: '#c8d6e5',
         inputBg: 'rgba(255, 255, 255, 0.05)',
         inputBorder: 'rgba(255, 255, 255, 0.1)',
-        inputBorderFocus: '#667eea',
-        inputText: '#f8f9fa',
-        inputPlaceholder: 'rgba(255, 255, 255, 0.4)',
-        chartBg: '#1a1a2e',
-        chartText: 'rgba(255, 255, 255, 0.7)',
-        svgText: 'rgba(255, 255, 255, 0.7)',
+        chartBg: 'rgba(255, 255, 255, 0.02)',
         panelBg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-        hoverBg: 'rgba(102, 126, 234, 0.2)',
-        infoText: 'rgba(255, 255, 255, 0.7)',
-        infoPanel: 'rgba(255, 255, 255, 0.04)',
       };
     }
   }, [theme]);
@@ -547,17 +409,12 @@ function BellCurveApp() {
       const savedTheme = localStorage.getItem('bellcurve_theme');
       if (savedTheme) {
         setTheme(savedTheme);
-      } else {
-        // Set initial theme on HTML element if no saved theme
-        document.documentElement.setAttribute('data-theme', 'dark');
       }
 
       const savedCurveColor = localStorage.getItem('bellcurve_curvecolor');
       if (savedCurveColor) {
         setBellCurveColor(savedCurveColor);
       }
-
-      // (Removed: Label styles/positions loading - no longer needed)
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
     }
@@ -572,20 +429,15 @@ function BellCurveApp() {
     }
   }, [branding]);
 
-  // Save theme preferences to localStorage AND set data-theme on HTML element
+  // Save theme preferences to localStorage
   React.useEffect(() => {
     try {
       localStorage.setItem('bellcurve_theme', theme);
       localStorage.setItem('bellcurve_curvecolor', bellCurveColor);
-
-      // CRITICAL FIX: Set data-theme on HTML element for CSS variables to work
-      document.documentElement.setAttribute('data-theme', theme);
     } catch (error) {
       console.error('Error saving theme:', error);
     }
   }, [theme, bellCurveColor]);
-
-  // (Removed: Label customization localStorage - no longer needed)
 
   React.useEffect(() => {
     const handleAfterPrint = () => {
@@ -600,25 +452,6 @@ function BellCurveApp() {
       setIsPrintPreview(false);
     }
   }, [mode]);
-
-  React.useEffect(() => {
-    const handlePointerDown = (event) => {
-      if (event.pointerType && event.pointerType !== 'touch' && event.pointerType !== 'pen') {
-        return;
-      }
-      const target = event.target;
-      if (!(target instanceof Element)) {
-        setActiveTooltipId(null);
-        return;
-      }
-      const marker = target.closest('.score-marker');
-      if (!marker) {
-        setActiveTooltipId(null);
-      }
-    };
-    document.addEventListener('pointerdown', handlePointerDown);
-    return () => document.removeEventListener('pointerdown', handlePointerDown);
-  }, []);
 
   // Save current profile
   const saveCurrentProfile = () => {
@@ -723,23 +556,6 @@ function BellCurveApp() {
     setTimeout(() => {
       window.print();
     }, 100);
-  };
-
-  // Get score descriptor (Very Low, Low, Average, etc.)
-  const getScoreDescriptor = (score) => {
-    if (score < 70) return 'Very Low';
-    if (score < 85) return 'Low';
-    if (score < 100) return 'Low Average';
-    if (score < 115) return 'Average';
-    if (score < 130) return 'High Average';
-    if (score < 145) return 'Superior';
-    return 'Very Superior';
-  };
-
-  // Get percentile label for a score
-  const getPercentileLabel = (score) => {
-    const percentile = getPercentileRank(score);
-    return formatPercentile(percentile);
   };
 
   const handleExportProfiles = () => {
@@ -930,9 +746,9 @@ function BellCurveApp() {
     setVisibleTestIds(new Set());
   };
 
-  // Chart dimensions with proper padding for the curve peak and tooltips
-  const chartTopPadding = 120; // Increased from 80 to accommodate tooltips/labels
-  const chartBottomY = 340; // Increased proportionally to maintain curve shape
+  // Chart dimensions with proper padding for the curve peak
+  const chartTopPadding = 80;
+  const chartBottomY = 300;
 
   // Generate bell curve path
   const generateBellCurve = () => {
@@ -1101,14 +917,14 @@ function BellCurveApp() {
     const markerRadius = 18;
     const stackGap = 8;
     const proximityThreshold = 5; // scores within 5 points are considered "close"
-
+    
     // Sort by score
     const sorted = [...visibleTests].sort((a, b) => a.score - b.score);
-
+    
     // Group tests by proximity
     const groups = [];
     let currentGroup = [];
-
+    
     sorted.forEach((test, index) => {
       if (currentGroup.length === 0) {
         currentGroup.push(test);
@@ -1125,16 +941,16 @@ function BellCurveApp() {
     if (currentGroup.length > 0) {
       groups.push(currentGroup);
     }
-
+    
     // Calculate positions with stacking
     const positions = [];
-
+    
     groups.forEach(group => {
       // Find the average score position for the group
       const avgScore = group.reduce((sum, t) => sum + t.score, 0) / group.length;
       const baseX = getScoreX(avgScore);
       const baseY = getScoreY(avgScore);
-
+      
       group.forEach((test, stackIndex) => {
         const x = getScoreX(test.score);
         const y = baseY - (stackIndex * (markerRadius * 2 + stackGap));
@@ -1148,11 +964,9 @@ function BellCurveApp() {
         });
       });
     });
-
+    
     return positions;
   };
-
-  // (Removed: Complex label placement engine - replaced with simple tooltips)
 
   const computedSummary = summaryOverride.trim() ? summaryOverride : generateSummary();
 
@@ -1171,52 +985,10 @@ function BellCurveApp() {
     >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
-
-        /* Theme CSS Variables */
-        :root[data-theme="light"] {
-          --ui-bg: #ffffff;
-          --ui-bg-alt: rgba(248, 249, 250, 0.95);
-          --ui-bg-hover: rgba(102, 126, 234, 0.08);
-          --ui-border: rgba(0, 0, 0, 0.15);
-          --ui-border-light: rgba(0, 0, 0, 0.1);
-          --ui-text: #1a1a2e;
-          --ui-text-secondary: #495057;
-          --ui-text-muted: #6c757d;
-          --input-bg: #ffffff;
-          --input-bg-focus: #ffffff;
-          --input-border: #ced4da;
-          --input-text: #212529;
-          --input-placeholder: #6c757d;
-          --button-inactive-bg: rgba(0, 0, 0, 0.08);
-          --button-inactive-text: rgba(0, 0, 0, 0.6);
-          --button-inactive-hover-bg: rgba(0, 0, 0, 0.15);
-          --button-inactive-hover-text: rgba(0, 0, 0, 0.9);
-        }
-
-        :root[data-theme="dark"] {
-          --ui-bg: rgba(255, 255, 255, 0.06);
-          --ui-bg-alt: rgba(255, 255, 255, 0.04);
-          --ui-bg-hover: rgba(255, 255, 255, 0.1);
-          --ui-border: rgba(255, 255, 255, 0.08);
-          --ui-border-light: rgba(255, 255, 255, 0.1);
-          --ui-text: rgba(255, 255, 255, 0.85);
-          --ui-text-secondary: rgba(255, 255, 255, 0.7);
-          --ui-text-muted: rgba(255, 255, 255, 0.5);
-          --input-bg: rgba(255, 255, 255, 0.05);
-          --input-bg-focus: rgba(255, 255, 255, 0.1);
-          --input-border: rgba(255, 255, 255, 0.1);
-          --input-text: #f8f9fa;
-          --input-placeholder: rgba(255, 255, 255, 0.4);
-          --button-inactive-bg: rgba(255, 255, 255, 0.08);
-          --button-inactive-text: rgba(255, 255, 255, 0.6);
-          --button-inactive-hover-bg: rgba(255, 255, 255, 0.15);
-          --button-inactive-hover-text: rgba(255, 255, 255, 0.9);
-        }
-
+        
         * {
           box-sizing: border-box;
         }
-
         
         .mode-btn {
           padding: 14px 32px;
@@ -1239,37 +1011,37 @@ function BellCurveApp() {
         }
         
         .mode-btn.inactive {
-          background: var(--button-inactive-bg);
-          color: var(--button-inactive-text);
+          background: rgba(255, 255, 255, 0.08);
+          color: rgba(255, 255, 255, 0.6);
           backdrop-filter: blur(10px);
         }
-
+        
         .mode-btn.inactive:hover {
-          background: var(--button-inactive-hover-bg);
-          color: var(--button-inactive-hover-text);
+          background: rgba(255, 255, 255, 0.15);
+          color: rgba(255, 255, 255, 0.9);
         }
         
         .input-field {
           padding: 14px 18px;
-          border: 2px solid var(--input-border);
+          border: 2px solid rgba(255, 255, 255, 0.1);
           border-radius: 12px;
           font-size: 15px;
-          background: var(--input-bg);
-          color: var(--input-text);
+          background: rgba(255, 255, 255, 0.05);
+          color: #f8f9fa;
           font-family: 'Nunito', sans-serif;
           transition: all 0.3s ease;
           backdrop-filter: blur(10px);
         }
-
+        
         .input-field:focus {
           outline: none;
           border-color: #667eea;
-          background: var(--input-bg-focus);
+          background: rgba(255, 255, 255, 0.1);
           box-shadow: 0 0 20px rgba(102, 126, 234, 0.2);
         }
-
+        
         .input-field::placeholder {
-          color: var(--input-placeholder);
+          color: rgba(255, 255, 255, 0.4);
         }
         
         .add-btn {
@@ -1299,18 +1071,18 @@ function BellCurveApp() {
         }
         
         .test-card {
-          background: var(--ui-bg);
+          background: rgba(255, 255, 255, 0.06);
           border-radius: 16px;
           padding: 18px 22px;
           display: flex;
           align-items: center;
           gap: 16px;
           backdrop-filter: blur(10px);
-          border: 1px solid var(--ui-border);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           transition: all 0.3s ease;
           animation: slideIn 0.4s ease-out;
         }
-
+        
         @keyframes slideIn {
           from {
             opacity: 0;
@@ -1321,10 +1093,10 @@ function BellCurveApp() {
             transform: translateX(0);
           }
         }
-
+        
         .test-card:hover {
-          background: var(--ui-bg-hover);
-          border-color: var(--ui-border-light);
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.15);
         }
         
         .remove-btn {
@@ -1365,8 +1137,8 @@ function BellCurveApp() {
         }
         
         .color-swatch.selected {
-          border-color: var(--ui-text);
-          box-shadow: 0 0 15px var(--ui-text-muted);
+          border-color: white;
+          box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
         }
         
         .legend-item {
@@ -1374,10 +1146,10 @@ function BellCurveApp() {
           align-items: center;
           gap: 12px;
           padding: 12px 18px;
-          background: var(--ui-bg);
+          background: rgba(255, 255, 255, 0.06);
           border-radius: 12px;
           backdrop-filter: blur(10px);
-          border: 1px solid var(--ui-border);
+          border: 1px solid rgba(255, 255, 255, 0.08);
         }
         
         .score-marker {
@@ -1391,11 +1163,11 @@ function BellCurveApp() {
         }
         
         .chart-container {
-          background: var(--ui-bg-alt);
+          background: rgba(255, 255, 255, 0.03);
           border-radius: 24px;
           padding: 40px;
           backdrop-filter: blur(20px);
-          border: 1px solid var(--ui-border);
+          border: 1px solid rgba(255, 255, 255, 0.08);
           box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
         }
         
@@ -1412,28 +1184,28 @@ function BellCurveApp() {
           align-items: center;
           gap: 14px;
           padding: 16px 20px;
-          background: var(--ui-bg-alt);
+          background: rgba(255, 255, 255, 0.04);
           border-radius: 12px;
           cursor: pointer;
           transition: all 0.2s ease;
           border: 2px solid transparent;
           user-select: none;
         }
-
+        
         .checkbox-card:hover {
-          background: var(--button-inactive-bg);
+          background: rgba(255, 255, 255, 0.08);
         }
-
+        
         .checkbox-card.checked {
           border-color: currentColor;
-          background: var(--ui-bg);
+          background: rgba(255, 255, 255, 0.06);
         }
-
+        
         .custom-checkbox {
           width: 24px;
           height: 24px;
           border-radius: 6px;
-          border: 2px solid var(--ui-text-muted);
+          border: 2px solid rgba(255, 255, 255, 0.3);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1461,13 +1233,13 @@ function BellCurveApp() {
           cursor: pointer;
           transition: all 0.2s ease;
           font-family: 'Nunito', sans-serif;
-          background: var(--button-inactive-bg);
-          color: var(--ui-text-secondary);
+          background: rgba(255, 255, 255, 0.1);
+          color: rgba(255, 255, 255, 0.8);
         }
-
+        
         .control-btn:hover {
-          background: var(--button-inactive-hover-bg);
-          color: var(--ui-text);
+          background: rgba(255, 255, 255, 0.2);
+          color: white;
         }
         
         .tooltip {
@@ -1593,17 +1365,17 @@ function BellCurveApp() {
         }
 
         .profile-card {
-          background: var(--ui-bg);
+          background: rgba(255, 255, 255, 0.06);
           border-radius: 12px;
           padding: 16px;
           cursor: pointer;
           transition: all 0.2s ease;
-          border: 1px solid var(--ui-border);
+          border: 1px solid rgba(255, 255, 255, 0.08);
         }
 
         .profile-card:hover {
-          background: var(--ui-bg-hover);
-          border-color: var(--ui-border-light);
+          background: rgba(255, 255, 255, 0.1);
+          border-color: rgba(255, 255, 255, 0.15);
           transform: translateY(-2px);
         }
 
@@ -1646,86 +1418,44 @@ function BellCurveApp() {
           font-size: 12px;
           color: #666;
         }
-
-        /* Responsive adjustments */
-        @media (max-width: 1024px) {
-          .mode-btn {
-            padding: 12px 24px;
-            font-size: 13px;
-          }
-        }
-
-        @media (max-width: 768px) {
-          .mode-btn {
-            padding: 10px 18px;
-            font-size: 12px;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .mode-btn {
-            padding: 8px 14px;
-            font-size: 11px;
-          }
-        }
       `}</style>
 
       {/* Header */}
-      <div className="app-header" style={{
-        padding: '24px 40px',
-        borderBottom: `1px solid ${themeColors.cardBorder}`,
+      <div style={{
+        padding: '30px 40px',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: themeColors.cardBgAlt,
+        background: 'rgba(0, 0, 0, 0.2)',
         backdropFilter: 'blur(20px)',
-        minHeight: '90px',
-        gap: '20px',
-        flexWrap: 'wrap',
       }}>
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center',
-          minWidth: '280px',
-          flex: '0 1 auto',
-        }}>
+        <div>
           <h1 style={{
             fontFamily: "'Playfair Display', serif",
-            fontSize: '28px',
+            fontSize: '32px',
             fontWeight: 700,
             margin: 0,
-            lineHeight: 1.2,
-            color: themeColors.heading,
+            background: 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
             letterSpacing: '-0.5px',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: '100%',
           }}>
             Score Distribution Visualizer
           </h1>
           <p style={{
-            margin: '6px 0 0 0',
-            color: themeColors.textMuted,
-            fontSize: '12px',
+            margin: '8px 0 0 0',
+            color: 'rgba(255, 255, 255, 0.5)',
+            fontSize: '14px',
             fontWeight: 600,
-            letterSpacing: '1.5px',
+            letterSpacing: '2px',
             textTransform: 'uppercase',
-            lineHeight: 1.4,
           }}>
             Bell Curve Analysis Tool
           </p>
         </div>
-
-        <div style={{
-          display: 'flex',
-          gap: '10px',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          justifyContent: 'flex-end',
-          flex: '1 1 auto',
-        }}>
+        
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button
             className="mode-btn inactive no-print"
             onClick={() => setShowHelpPanel(true)}
@@ -1804,12 +1534,12 @@ function BellCurveApp() {
           padding: '20px',
         }} className="no-print">
           <div style={{
-            background: themeColors.panelBg,
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
             borderRadius: '24px',
             padding: '40px',
             maxWidth: '600px',
             width: '100%',
-            border: `1px solid ${themeColors.cardBorder}`,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
             maxHeight: '80vh',
             overflowY: 'auto',
           }}>
@@ -1817,7 +1547,7 @@ function BellCurveApp() {
               margin: '0 0 30px 0',
               fontSize: '28px',
               fontWeight: 700,
-              color: themeColors.heading,
+              color: '#f8f9fa',
             }}>
               🎨 Custom Branding
             </h2>
@@ -1829,7 +1559,7 @@ function BellCurveApp() {
                   marginBottom: '8px',
                   fontSize: '14px',
                   fontWeight: 600,
-                  color: themeColors.textSecondary,
+                  color: 'rgba(255, 255, 255, 0.8)',
                 }}>
                   School Name
                 </label>
@@ -1849,7 +1579,7 @@ function BellCurveApp() {
                   marginBottom: '8px',
                   fontSize: '14px',
                   fontWeight: 600,
-                  color: themeColors.textSecondary,
+                  color: 'rgba(255, 255, 255, 0.8)',
                 }}>
                   School Logo
                 </label>
@@ -1869,10 +1599,10 @@ function BellCurveApp() {
                         maxWidth: '200px',
                         maxHeight: '100px',
                         objectFit: 'contain',
-                        border: `2px solid ${themeColors.inputBorder}`,
+                        border: '2px solid rgba(255, 255, 255, 0.1)',
                         borderRadius: '8px',
                         padding: '10px',
-                        background: themeColors.inputBg,
+                        background: 'rgba(255, 255, 255, 0.05)',
                       }}
                     />
                   </div>
@@ -1885,7 +1615,7 @@ function BellCurveApp() {
                   marginBottom: '8px',
                   fontSize: '14px',
                   fontWeight: 600,
-                  color: themeColors.textSecondary,
+                  color: 'rgba(255, 255, 255, 0.8)',
                 }}>
                   Primary Color
                 </label>
@@ -1896,10 +1626,10 @@ function BellCurveApp() {
                   style={{
                     width: '100%',
                     height: '50px',
-                    border: `2px solid ${themeColors.inputBorder}`,
+                    border: '2px solid rgba(255, 255, 255, 0.1)',
                     borderRadius: '12px',
                     cursor: 'pointer',
-                    background: themeColors.inputBg,
+                    background: 'rgba(255, 255, 255, 0.05)',
                   }}
                 />
               </div>
@@ -1910,7 +1640,7 @@ function BellCurveApp() {
                   marginBottom: '8px',
                   fontSize: '14px',
                   fontWeight: 600,
-                  color: themeColors.textSecondary,
+                  color: 'rgba(255, 255, 255, 0.8)',
                 }}>
                   Report Footer Text
                 </label>
@@ -2134,12 +1864,12 @@ function BellCurveApp() {
           padding: '20px',
         }} className="no-print">
           <div style={{
-            background: themeColors.panelBg,
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
             borderRadius: '24px',
             padding: '40px',
             maxWidth: '700px',
             width: '100%',
-            border: `1px solid ${themeColors.cardBorder}`,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
             maxHeight: '80vh',
             overflowY: 'auto',
           }}>
@@ -2147,7 +1877,7 @@ function BellCurveApp() {
               margin: '0 0 30px 0',
               fontSize: '28px',
               fontWeight: 700,
-              color: themeColors.heading,
+              color: '#f8f9fa',
             }}>
               📁 Student Profiles
             </h2>
@@ -2190,7 +1920,7 @@ function BellCurveApp() {
               <div style={{
                 textAlign: 'center',
                 padding: '60px 20px',
-                color: themeColors.textMuted,
+                color: 'rgba(255, 255, 255, 0.4)',
               }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>📂</div>
                 <p style={{ margin: 0, fontSize: '16px' }}>
@@ -2203,16 +1933,16 @@ function BellCurveApp() {
                   <div key={profile.id} className="profile-card">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                       <div style={{ flex: 1 }} onClick={() => loadProfile(profile)}>
-                        <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '8px', color: themeColors.text }}>
+                        <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '8px', color: '#f8f9fa' }}>
                           {profile.studentName}
                         </div>
-                        <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginBottom: '4px' }}>
+                        <div style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '4px' }}>
                           Assessment: {profile.assessmentDate ? new Date(profile.assessmentDate).toLocaleDateString() : 'No date'}
                         </div>
-                        <div style={{ fontSize: '13px', color: themeColors.textSecondary, marginBottom: '4px' }}>
+                        <div style={{ fontSize: '13px', color: 'rgba(255, 255, 255, 0.6)', marginBottom: '4px' }}>
                           Tests: {profile.tests.length}
                         </div>
-                        <div style={{ fontSize: '12px', color: themeColors.textMuted }}>
+                        <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.4)' }}>
                           Saved: {new Date(profile.savedAt).toLocaleDateString()} {new Date(profile.savedAt).toLocaleTimeString()}
                         </div>
                         {currentProfileId === profile.id && (
@@ -2277,12 +2007,12 @@ function BellCurveApp() {
           padding: '20px',
         }} className="no-print">
           <div style={{
-            background: themeColors.panelBg,
+            background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
             borderRadius: '24px',
             padding: '40px',
             maxWidth: '700px',
             width: '100%',
-            border: `1px solid ${themeColors.cardBorder}`,
+            border: '1px solid rgba(255, 255, 255, 0.1)',
             maxHeight: '80vh',
             overflowY: 'auto',
           }}>
@@ -2290,7 +2020,7 @@ function BellCurveApp() {
               margin: '0 0 30px 0',
               fontSize: '28px',
               fontWeight: 700,
-              color: themeColors.heading,
+              color: '#f8f9fa',
             }}>
               ❓ Quick Walkthrough
             </h2>
@@ -2298,22 +2028,22 @@ function BellCurveApp() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
               {HELP_STEPS.map((step, index) => (
                 <div key={step.title} style={{
-                  background: themeColors.cardBg,
+                  background: 'rgba(255, 255, 255, 0.05)',
                   borderRadius: '16px',
                   padding: '18px 20px',
-                  border: `1px solid ${themeColors.cardBorder}`,
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}>
                   <div style={{
                     fontSize: '14px',
                     fontWeight: 700,
-                    color: themeColors.heading,
+                    color: '#c8d6e5',
                     marginBottom: '8px',
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
                   }}>
                     {index + 1}. {step.title}
                   </div>
-                  <div style={{ fontSize: '15px', color: themeColors.text }}>
+                  <div style={{ fontSize: '15px', color: 'rgba(255, 255, 255, 0.8)' }}>
                     {step.body}
                   </div>
                 </div>
@@ -2348,17 +2078,17 @@ function BellCurveApp() {
             <div>
               {/* Student Info */}
               <div style={{
-                background: themeColors.cardBg,
+                background: 'rgba(255, 255, 255, 0.04)',
                 borderRadius: '20px',
                 padding: '28px',
                 marginBottom: '28px',
-                border: `1px solid ${themeColors.cardBorder}`,
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: themeColors.text,
+                  color: '#c8d6e5',
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
@@ -2371,14 +2101,14 @@ function BellCurveApp() {
                     value={studentName}
                     onChange={(e) => setStudentName(e.target.value)}
                     className="input-field"
-                    style={{ flex: 1, background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
+                    style={{ flex: 1 }}
                   />
                   <input
                     type="date"
                     value={assessmentDate}
                     onChange={(e) => setAssessmentDate(e.target.value)}
                     className="input-field"
-                    style={{ width: '180px', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
+                    style={{ width: '180px' }}
                   />
                 </div>
                 <button
@@ -2408,23 +2138,23 @@ function BellCurveApp() {
 
               {/* Add Test */}
               <div style={{
-                background: themeColors.cardBg,
+                background: 'rgba(255, 255, 255, 0.04)',
                 borderRadius: '20px',
                 padding: '28px',
                 marginBottom: '28px',
-                border: `1px solid ${themeColors.cardBorder}`,
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: themeColors.text,
+                  color: '#c8d6e5',
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
                   ➕ Add Test Score
                 </h3>
-
+                
                 <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
                   <div style={{ flex: 2, position: 'relative' }} ref={autocompleteRef}>
                     <input
@@ -2433,7 +2163,7 @@ function BellCurveApp() {
                       value={newTest.name}
                       onChange={handleTestNameChange}
                       className="input-field"
-                      style={{ width: '100%', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
+                      style={{ width: '100%' }}
                     />
                     {showAutocomplete && autocompleteSuggestions.length > 0 && (
                       <div style={{
@@ -2441,8 +2171,8 @@ function BellCurveApp() {
                         top: '100%',
                         left: 0,
                         right: 0,
-                        background: theme === 'light' ? '#ffffff' : '#1a1a2e',
-                        border: `1px solid ${themeColors.cardBorder}`,
+                        background: '#1a1a2e',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
                         borderRadius: '12px',
                         marginTop: '4px',
                         maxHeight: '300px',
@@ -2462,11 +2192,11 @@ function BellCurveApp() {
                               style={{
                                 padding: '12px 16px',
                                 cursor: 'pointer',
-                                borderBottom: index < autocompleteSuggestions.length - 1 ? `1px solid ${themeColors.cardBorder}` : 'none',
+                                borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
                                 transition: 'all 0.2s ease',
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = theme === 'light' ? 'rgba(102, 126, 234, 0.1)' : 'rgba(102, 126, 234, 0.2)';
+                                e.currentTarget.style.background = 'rgba(102, 126, 234, 0.2)';
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.background = 'transparent';
@@ -2474,7 +2204,7 @@ function BellCurveApp() {
                             >
                               <div style={{
                                 fontSize: '14px',
-                                color: isParentTest ? '#4ECDC4' : themeColors.text,
+                                color: isParentTest ? '#4ECDC4' : 'rgba(255, 255, 255, 0.85)',
                                 fontWeight: isParentTest ? 600 : 400,
                               }}>
                                 {isParentTest && '📋 '}{displayName}
@@ -2482,7 +2212,7 @@ function BellCurveApp() {
                               {isParentTest && (
                                 <div style={{
                                   fontSize: '11px',
-                                  color: theme === 'light' ? 'rgba(78, 205, 196, 0.8)' : 'rgba(78, 205, 196, 0.7)',
+                                  color: 'rgba(78, 205, 196, 0.7)',
                                   marginTop: '4px',
                                   fontStyle: 'italic',
                                 }}>
@@ -2501,7 +2231,7 @@ function BellCurveApp() {
                     value={newTest.score}
                     onChange={(e) => setNewTest({ ...newTest, score: e.target.value })}
                     className="input-field"
-                    style={{ flex: 1, background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
+                    style={{ flex: 1 }}
                     min="40"
                     max="160"
                   />
@@ -2513,7 +2243,7 @@ function BellCurveApp() {
                     marginBottom: '12px',
                     fontSize: '13px',
                     fontWeight: 600,
-                    color: themeColors.textSecondary,
+                    color: 'rgba(255, 255, 255, 0.6)',
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
                   }}>
@@ -2538,7 +2268,7 @@ function BellCurveApp() {
                         width: '32px',
                         height: '32px',
                         borderRadius: '8px',
-                        border: `3px solid ${themeColors.inputBorder}`,
+                        border: '3px solid rgba(255, 255, 255, 0.3)',
                         cursor: 'pointer',
                         background: 'transparent',
                       }}
@@ -2558,27 +2288,27 @@ function BellCurveApp() {
 
               {/* Test List */}
               <div style={{
-                background: themeColors.cardBg,
+                background: 'rgba(255, 255, 255, 0.04)',
                 borderRadius: '20px',
                 padding: '28px',
-                border: `1px solid ${themeColors.cardBorder}`,
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: themeColors.text,
+                  color: '#c8d6e5',
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
                   📝 Added Tests ({tests.length})
                 </h3>
-
+                
                 {tests.length === 0 ? (
                   <div style={{
                     textAlign: 'center',
                     padding: '40px',
-                    color: themeColors.textMuted,
+                    color: 'rgba(255, 255, 255, 0.4)',
                     fontSize: '15px',
                   }}>
                     No tests added yet. Add your first test above!
@@ -2589,7 +2319,7 @@ function BellCurveApp() {
                       const isEditing = editingTestId === test.id;
 
                       return (
-                        <div key={test.id} className="test-card" style={{ background: themeColors.cardBg, border: `1px solid ${themeColors.cardBorder}` }}>
+                        <div key={test.id} className="test-card">
                           {isEditing ? (
                             <>
                               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -2599,7 +2329,7 @@ function BellCurveApp() {
                                   onChange={(e) => setEditingTest({ ...editingTest, name: e.target.value })}
                                   className="input-field"
                                   placeholder="Test name"
-                                  style={{ fontSize: '14px', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
+                                  style={{ fontSize: '14px' }}
                                 />
                                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                                   <input
@@ -2610,7 +2340,7 @@ function BellCurveApp() {
                                     placeholder="Score"
                                     min="40"
                                     max="160"
-                                    style={{ flex: 1, fontSize: '14px', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
+                                    style={{ flex: 1, fontSize: '14px' }}
                                   />
                                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                                     {PRESET_COLORS.map((color) => (
@@ -2622,7 +2352,7 @@ function BellCurveApp() {
                                           borderRadius: '50%',
                                           backgroundColor: color.value,
                                           cursor: 'pointer',
-                                          border: editingTest.color === color.value ? `3px solid ${themeColors.text}` : `2px solid ${themeColors.inputBorder}`,
+                                          border: editingTest.color === color.value ? '3px solid #ffffff' : '2px solid rgba(255, 255, 255, 0.2)',
                                           transition: 'all 0.2s ease',
                                         }}
                                         onClick={() => setEditingTest({ ...editingTest, color: color.value })}
@@ -2661,12 +2391,12 @@ function BellCurveApp() {
                                 }}
                               />
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px', color: themeColors.text }}>
+                                <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px' }}>
                                   {test.name}
                                 </div>
                                 <div style={{
                                   fontSize: '13px',
-                                  color: themeColors.textMuted,
+                                  color: 'rgba(255, 255, 255, 0.5)',
                                 }}>
                                   Score: {test.score} ({formatPercentile(getPercentileRank(test.score))} %ile) • {getScoreDescription(test.score)}
                                 </div>
@@ -2698,19 +2428,19 @@ function BellCurveApp() {
 
             {/* Right Panel - Preview */}
             <div>
-              <div className="chart-container" style={{ background: themeColors.chartBg }}>
+              <div className="chart-container">
                 <h3 style={{
                   margin: '0 0 24px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: themeColors.heading,
+                  color: '#c8d6e5',
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
                   📈 Live Preview
                 </h3>
                 
-                <svg viewBox="0 0 800 420" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
+                <svg viewBox="0 0 800 380" style={{ width: '100%', height: 'auto' }}>
                   {/* Grid lines */}
                   {[55, 70, 85, 100, 115, 130, 145].map((score) => (
                     <line
@@ -2719,7 +2449,7 @@ function BellCurveApp() {
                       y1={chartTopPadding}
                       x2={getScoreX(score)}
                       y2={chartBottomY}
-                      stroke={theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}
+                      stroke="rgba(255, 255, 255, 0.1)"
                       strokeDasharray="4,4"
                     />
                   ))}
@@ -2727,7 +2457,7 @@ function BellCurveApp() {
                   {/* Average range highlight (85-115) */}
                   <path
                     d={averageAreaPath}
-                    fill={theme === 'dark' ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.05)'}
+                    fill="rgba(0, 0, 0, 0.25)"
                   />
 
                   {/* Bell curve */}
@@ -2752,9 +2482,9 @@ function BellCurveApp() {
                     <g key={score}>
                       <text
                         x={getScoreX(score)}
-                        y="370"
+                        y="330"
                         textAnchor="middle"
-                        fill={themeColors.chartText}
+                        fill="rgba(255, 255, 255, 0.7)"
                         fontSize="12"
                         fontWeight="600"
                         fontFamily="Nunito, sans-serif"
@@ -2763,9 +2493,9 @@ function BellCurveApp() {
                       </text>
                       <text
                         x={getScoreX(score)}
-                        y="390"
+                        y="350"
                         textAnchor="middle"
-                        fill={themeColors.textMuted}
+                        fill="rgba(255, 255, 255, 0.4)"
                         fontSize="9"
                         fontFamily="Nunito, sans-serif"
                       >
@@ -2777,9 +2507,9 @@ function BellCurveApp() {
                   {/* Average range label */}
                   <text
                     x={getScoreX(100)}
-                    y="410"
+                    y="370"
                     textAnchor="middle"
-                    fill={themeColors.textMuted}
+                    fill="rgba(255, 255, 255, 0.5)"
                     fontSize="10"
                     fontFamily="Nunito, sans-serif"
                     fontWeight="600"
@@ -2839,7 +2569,7 @@ function BellCurveApp() {
                 </svg>
 
                 {/* Legend */}
-                {safeTests.length > 0 && (
+                {tests.length > 0 && (
                   <div style={{
                     display: 'flex',
                     flexWrap: 'wrap',
@@ -2866,12 +2596,12 @@ function BellCurveApp() {
               </div>
 
               {/* Info Panel */}
-              <div className="info-panel" style={{ background: themeColors.infoPanel, border: `1px solid ${themeColors.cardBorder}` }}>
+              <div className="info-panel">
                 <h4 style={{
                   margin: '0 0 12px 0',
                   fontSize: '14px',
                   fontWeight: 700,
-                  color: themeColors.heading,
+                  color: '#c8d6e5',
                 }}>
                   ℹ️ Understanding the Bell Curve
                 </h4>
@@ -2879,7 +2609,7 @@ function BellCurveApp() {
                   margin: 0,
                   fontSize: '13px',
                   lineHeight: '1.7',
-                  color: themeColors.infoText,
+                  color: 'rgba(255, 255, 255, 0.7)',
                 }}>
                   The <strong>shaded area</strong> represents the average range (85-115), where most scores fall.
                   Scores are measured on a standard scale where 100 is the mean average and each 15 points
@@ -2930,14 +2660,16 @@ function BellCurveApp() {
                   fontSize: '42px',
                   fontWeight: 700,
                   margin: '0 0 10px 0',
-                  color: themeColors.heading,
+                  background: 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
                 }}>
                   {studentName}'s Score Profile
                 </h2>
               )}
               {assessmentDate && (
                 <p style={{
-                  color: themeColors.textMuted,
+                  color: 'rgba(255, 255, 255, 0.5)',
                   fontSize: '16px',
                   margin: 0,
                 }}>
@@ -2950,47 +2682,31 @@ function BellCurveApp() {
               )}
             </div>
 
-            <div className="chart-container" style={{ marginBottom: '32px', background: themeColors.chartBg }}>
+            <div className="chart-container" style={{ marginBottom: '32px' }}>
               {/* Hover instruction and label toggle */}
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
-                marginBottom: '12px',
+                marginBottom: '16px',
               }}>
                 <p style={{
                   margin: 0,
                   fontSize: '13px',
-                  color: themeColors.textMuted,
+                  color: 'rgba(255, 255, 255, 0.5)',
                 }}>
-                  💡 Hover or tap markers to see details
+                  💡 Hover over any score marker to see the test name
                 </p>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    className="control-btn no-print"
-                    onClick={() => setShowScoresList(!showScoresList)}
-                    style={{ fontSize: '12px' }}
-                  >
-                    {showScoresList ? '📋 Hide Scores List' : '📋 Show Scores List'}
-                  </button>
-                  <button
-                    className="control-btn no-print"
-                    onClick={() => setIsPrintMode(!isPrintMode)}
-                    style={{ fontSize: '12px' }}
-                  >
-                    {isPrintMode ? '🖨️ Normal View' : '🖨️ Print Mode'}
-                  </button>
-                </div>
+                <button
+                  className="control-btn no-print"
+                  onClick={() => setShowLabelsOnCurve(!showLabelsOnCurve)}
+                  style={{ fontSize: '12px' }}
+                >
+                  {showLabelsOnCurve ? '🏷️ Hide Labels' : '🏷️ Show Labels'}
+                </button>
               </div>
               
-              <div style={{
-                display: 'flex',
-                gap: '24px',
-                alignItems: 'flex-start',
-                flexWrap: 'wrap',
-              }}>
-                <div style={{ flex: '1 1 520px', minWidth: '320px' }}>
-                  <svg viewBox="0 0 800 480" style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
+              <svg viewBox="0 0 800 440" style={{ width: '100%', height: 'auto' }}>
                 {/* Grid lines */}
                 {[55, 70, 85, 100, 115, 130, 145].map((score) => (
                   <line
@@ -2999,7 +2715,7 @@ function BellCurveApp() {
                     y1={chartTopPadding}
                     x2={getScoreX(score)}
                     y2={chartBottomY}
-                    stroke={theme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'}
+                    stroke="rgba(255, 255, 255, 0.1)"
                     strokeDasharray="4,4"
                   />
                 ))}
@@ -3007,13 +2723,13 @@ function BellCurveApp() {
                 {/* Average range highlight (85-115) */}
                 <path
                   d={averageAreaPath}
-                  fill={theme === 'dark' ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.05)'}
+                  fill="rgba(0, 0, 0, 0.25)"
                 />
 
                 {/* Bell curve */}
                 <path
                   d={bellPath}
-                  fill={`${bellCurveColor}26`}
+                  fill="rgba(102, 126, 234, 0.15)"
                   stroke="url(#curveGradientPres)"
                   strokeWidth="3"
                 />
@@ -3021,9 +2737,9 @@ function BellCurveApp() {
                 {/* Gradient definition */}
                 <defs>
                   <linearGradient id="curveGradientPres" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor={bellCurveColor} />
-                    <stop offset="50%" stopColor={bellCurveColor} stopOpacity="0.7" />
-                    <stop offset="100%" stopColor={bellCurveColor} />
+                    <stop offset="0%" stopColor="#667eea" />
+                    <stop offset="50%" stopColor="#764ba2" />
+                    <stop offset="100%" stopColor="#667eea" />
                   </linearGradient>
                   <filter id="glow">
                     <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
@@ -3042,9 +2758,9 @@ function BellCurveApp() {
                   <g key={score}>
                     <text
                       x={getScoreX(score)}
-                      y="370"
+                      y="330"
                       textAnchor="middle"
-                      fill={themeColors.text}
+                      fill="rgba(255, 255, 255, 0.8)"
                       fontSize="14"
                       fontWeight="700"
                       fontFamily="Nunito, sans-serif"
@@ -3053,9 +2769,9 @@ function BellCurveApp() {
                     </text>
                     <text
                       x={getScoreX(score)}
-                      y="390"
+                      y="350"
                       textAnchor="middle"
-                      fill={themeColors.textSecondary}
+                      fill="rgba(255, 255, 255, 0.5)"
                       fontSize="11"
                       fontFamily="Nunito, sans-serif"
                     >
@@ -3063,9 +2779,9 @@ function BellCurveApp() {
                     </text>
                     <text
                       x={getScoreX(score)}
-                      y="405"
+                      y="365"
                       textAnchor="middle"
-                      fill={themeColors.textMuted}
+                      fill="rgba(255, 255, 255, 0.4)"
                       fontSize="9"
                       fontFamily="Nunito, sans-serif"
                       fontStyle="italic"
@@ -3078,9 +2794,9 @@ function BellCurveApp() {
                 {/* Average range indicator */}
                 <text
                   x={getScoreX(100)}
-                  y="430"
+                  y="390"
                   textAnchor="middle"
-                  fill={themeColors.textSecondary}
+                  fill="rgba(255, 255, 255, 0.6)"
                   fontSize="12"
                   fontFamily="Nunito, sans-serif"
                   fontWeight="600"
@@ -3088,62 +2804,23 @@ function BellCurveApp() {
                   ← Average Range (85-115) →
                 </text>
 
-                {/* REMOVED OLD LABEL CODE - was calling non-existent functions */}
-
-
-                {/* PRINT MODE: Numbered markers */}
-                {isPrintMode && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index) => {
-                  const markerNumber = index + 1;
-                  return (
-                    <g key={`print-marker-${test.id}`}>
-                      {/* Number badge next to marker */}
-                      <circle
-                        cx={x + 25}
-                        cy={y - 10}
-                        r={12}
-                        fill={themeColors.cardBg}
-                        stroke={test.color}
-                        strokeWidth="2"
-                      />
-                      <text
-                        x={x + 25}
-                        y={y - 6}
-                        textAnchor="middle"
-                        fill={test.color}
-                        fontSize="11"
-                        fontWeight="800"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        {markerNumber}
-                      </text>
-                    </g>
-                  );
-                })}
-
                 {/* Score markers with stacking and hover */}
                 {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
                   const isHovered = hoveredTestId === test.id;
-                  const isTooltipVisible = isHovered || activeTooltipId === test.id;
                   const isHidden = hoveredTestId !== null && !isHovered;
                   const textColor = getContrastTextColor(test.color);
-
+                  
                   return (
-                    <g
-                      key={test.id}
+                    <g 
+                      key={test.id} 
                       className="score-marker"
                       onMouseEnter={() => setHoveredTestId(test.id)}
                       onMouseLeave={() => setHoveredTestId(null)}
-                      onPointerDown={(event) => {
-                        if (event.pointerType === 'touch' || event.pointerType === 'pen') {
-                          setActiveTooltipId(activeTooltipId === test.id ? null : test.id);
-                        }
-                      }}
-                      style={{
+                      style={{ 
                         cursor: 'pointer',
                         opacity: isHidden ? 0.15 : 1,
                         transition: 'opacity 0.2s ease',
                       }}
-                      data-test-id={test.id}
                     >
                       {/* Vertical line to base of curve */}
                       <line
@@ -3194,7 +2871,7 @@ function BellCurveApp() {
                       </text>
                       
                       {/* Tooltip on hover */}
-                      {isTooltipVisible && (
+                      {isHovered && (
                         <g className="tooltip">
                           {/* Tooltip background - dark background for better contrast */}
                           <rect
@@ -3253,221 +2930,149 @@ function BellCurveApp() {
                   );
                 })}
 
-                {/* REMOVED OLD LABEL CODE - was calling non-existent functions */}
-                  </svg>
-                </div>
+                {/* Test name labels - always shown in print, toggle in screen view */}
+                {(showLabelsOnCurve || typeof window !== 'undefined') && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index, array) => {
+                  // Calculate label position - above the marker, accounting for stacking
+                  const labelY = y - 35;
+                  const labelX = x;
 
-              {/* Test Selection Panel */}
-              {safeTests.length > 0 && (
-                <div style={{
-                  background: themeColors.cardBg,
-                  borderRadius: '20px',
-                  padding: '28px',
-                  marginBottom: '32px',
-                  border: `1px solid ${themeColors.cardBorder}`,
-                }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '20px',
-                  }}>
-                    <h3 style={{
-                      margin: 0,
-                      fontSize: '18px',
-                      fontWeight: 700,
-                      color: themeColors.heading,
-                      letterSpacing: '1px',
-                      textTransform: 'uppercase',
-                    }}>
-                      📊 Select Tests to Display
-                    </h3>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <button className="control-btn" onClick={showAllTests}>
-                        Show All
-                      </button>
-                      <button className="control-btn" onClick={hideAllTests}>
-                        Hide All
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                    gap: '12px',
-                  }}>
-                    {safeTests.map((test) => {
-                      const isChecked = visibleTestIds.has(test.id);
-                      return (
-                        <div
-                          key={test.id}
-                          className={`checkbox-card ${isChecked ? 'checked' : ''}`}
-                          onClick={() => toggleTestVisibility(test.id)}
-                          style={{ color: test.color }}
-                        >
-                          <div 
-                            className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
-                            style={{ borderColor: isChecked ? test.color : undefined, background: isChecked ? test.color : 'transparent' }}
-                          >
-                            {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color) }}>✓</span>}
-                          </div>
-                          <div
-                            style={{
-                              width: '12px',
-                              height: '36px',
-                              borderRadius: '6px',
-                              backgroundColor: test.color,
-                              flexShrink: 0,
-                            }}
-                          />
-                          <div style={{ flex: 1 }}>
-                            <div style={{
-                              fontWeight: 700,
-                              fontSize: '15px',
-                              color: themeColors.text,
-                              marginBottom: '2px',
-                            }}>
-                              {test.name}
-                            </div>
-                            <div style={{
-                              fontSize: '13px',
-                              color: themeColors.textMuted,
-                            }}>
-                              Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))}) • {getScoreDescription(test.score)}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                  // Determine text anchor based on position to avoid edge overflow
+                  let textAnchor = 'middle';
+                  let adjustedX = labelX;
 
-              {/* SCORES LIST PANEL */}
-              {showScoresList && safeTests.length > 0 && (
+                  if (labelX < 100) {
+                    textAnchor = 'start';
+                    adjustedX = labelX + 25;
+                  } else if (labelX > 700) {
+                    textAnchor = 'end';
+                    adjustedX = labelX - 25;
+                  }
+
+                  // Calculate rect width based on text length
+                  const rectWidth = test.name.length * 7 + 12;
+                  const rectX = textAnchor === 'middle'
+                    ? adjustedX - rectWidth / 2
+                    : textAnchor === 'start'
+                      ? adjustedX - 6
+                      : adjustedX - rectWidth + 6;
+
+                  return (
+                    <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
+                      {/* Label background for better readability */}
+                      <rect
+                        x={rectX}
+                        y={labelY - 12}
+                        width={rectWidth}
+                        height="18"
+                        rx="4"
+                        fill="white"
+                        stroke={test.color}
+                        strokeWidth="2"
+                      />
+                      {/* Test name label */}
+                      <text
+                        x={adjustedX}
+                        y={labelY}
+                        textAnchor={textAnchor}
+                        fill={test.color}
+                        fontSize="10"
+                        fontWeight="700"
+                        fontFamily="Nunito, sans-serif"
+                      >
+                        {test.name}
+                      </text>
+                    </g>
+                  );
+                })}
+              </svg>
+            </div>
+
+            {/* Test Selection Panel */}
+            {tests.length > 0 && (
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '20px',
+                padding: '28px',
+                marginBottom: '32px',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+              }}>
                 <div style={{
-                  marginTop: '24px',
-                  padding: '16px',
-                  background: themeColors.cardBg,
-                  borderRadius: '8px',
-                  border: `1px solid ${themeColors.cardBorder}`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '20px',
                 }}>
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '12px',
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: '#c8d6e5',
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
                   }}>
-                    <h4 style={{
-                      margin: 0,
-                      fontSize: '14px',
-                      fontWeight: '700',
-                      color: themeColors.heading,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}>
-                      📊 Scores Summary
-                    </h4>
-                    <button
-                      onClick={() => setSortScoresAsc(!sortScoresAsc)}
-                      style={{
-                        padding: '4px 12px',
-                        fontSize: '11px',
-                        background: themeColors.buttonBg,
-                        color: themeColors.text,
-                        border: `1px solid ${themeColors.border}`,
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontWeight: '600',
-                      }}
-                    >
-                      {sortScoresAsc ? '⬆️ Low to High' : '⬇️ High to Low'}
+                    📊 Select Tests to Display
+                  </h3>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button className="control-btn" onClick={showAllTests}>
+                      Show All
+                    </button>
+                    <button className="control-btn" onClick={hideAllTests}>
+                      Hide All
                     </button>
                   </div>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                  }}>
-                    {(() => {
-                      const sortedTests = [...safeTests].sort((a, b) =>
-                        sortScoresAsc ? a.score - b.score : b.score - a.score
-                      );
-                      return sortedTests.map((test, index) => (
-                        <div
-                          key={test.id}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            padding: '10px 12px',
-                            background: themeColors.cardBgAlt,
-                            borderRadius: '6px',
-                            border: `2px solid transparent`,
-                            transition: 'all 0.2s ease',
-                          }}
+                </div>
+                
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '12px',
+                }}>
+                  {tests.map((test) => {
+                    const isChecked = visibleTestIds.has(test.id);
+                    return (
+                      <div
+                        key={test.id}
+                        className={`checkbox-card ${isChecked ? 'checked' : ''}`}
+                        onClick={() => toggleTestVisibility(test.id)}
+                        style={{ color: test.color }}
+                      >
+                        <div 
+                          className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
+                          style={{ borderColor: isChecked ? test.color : undefined, background: isChecked ? test.color : 'transparent' }}
                         >
-                          {/* Color chip */}
-                          <div style={{
-                            width: '8px',
-                            height: '32px',
-                            background: test.color,
-                            borderRadius: '4px',
+                          {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color) }}>✓</span>}
+                        </div>
+                        <div
+                          style={{
+                            width: '12px',
+                            height: '36px',
+                            borderRadius: '6px',
+                            backgroundColor: test.color,
                             flexShrink: 0,
-                          }} />
-                          {/* Test name */}
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ 
+                            fontWeight: 700, 
+                            fontSize: '15px', 
+                            color: '#f8f9fa',
+                            marginBottom: '2px',
+                          }}>
+                            {test.name}
+                          </div>
                           <div style={{
-                            flex: 1,
                             fontSize: '13px',
-                            fontWeight: '700',
-                            color: test.color,
-                            fontFamily: 'Nunito, sans-serif',
+                            color: 'rgba(255, 255, 255, 0.5)',
                           }}>
-                            {isPrintMode && `${index + 1}. `}{test.name}
-                          </div>
-                          {/* Score */}
-                          <div style={{
-                            fontSize: '16px',
-                            fontWeight: '800',
-                            color: themeColors.text,
-                            fontFamily: 'Nunito, sans-serif',
-                            minWidth: '40px',
-                            textAlign: 'right',
-                          }}>
-                            {test.score}
-                          </div>
-                          {/* Range label */}
-                          <div style={{
-                            fontSize: '11px',
-                            fontWeight: '600',
-                            color: themeColors.textMuted,
-                            fontFamily: 'Nunito, sans-serif',
-                            minWidth: '100px',
-                            textAlign: 'right',
-                          }}>
-                            {getScoreDescriptor(test.score)}
+                            Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))}) • {getScoreDescription(test.score)}
                           </div>
                         </div>
-                      ));
-                    })()}
-                  </div>
-                  {isPrintMode && (
-                    <div style={{
-                      marginTop: '16px',
-                      padding: '12px',
-                      background: themeColors.cardBgAlt,
-                      borderRadius: '6px',
-                      fontSize: '11px',
-                      color: themeColors.textMuted,
-                      fontStyle: 'italic',
-                    }}>
-                      💡 Print Mode: Numbers on chart correspond to the list above
-                    </div>
-                  )}
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Score Summary Cards */}
             {getVisibleTests().length > 0 && (
@@ -3481,12 +3086,12 @@ function BellCurveApp() {
                   <div
                     key={test.id}
                     style={{
-                      background: themeColors.cardBg,
+                      background: 'rgba(255, 255, 255, 0.04)',
                       borderRadius: '16px',
                       padding: '20px',
                       borderLeft: `5px solid ${test.color}`,
                       backdropFilter: 'blur(10px)',
-                      border: `1px solid ${themeColors.cardBorder}`,
+                      border: `1px solid rgba(255, 255, 255, 0.08)`,
                       borderLeftWidth: '5px',
                       borderLeftColor: test.color,
                     }}
@@ -3509,7 +3114,7 @@ function BellCurveApp() {
                         margin: 0,
                         fontSize: '15px',
                         fontWeight: 700,
-                        color: themeColors.heading,
+                        color: '#f8f9fa',
                       }}>
                         {test.name}
                       </h4>
@@ -3524,7 +3129,7 @@ function BellCurveApp() {
                     </div>
                     <div style={{
                       fontSize: '14px',
-                      color: themeColors.textSecondary,
+                      color: 'rgba(255, 255, 255, 0.7)',
                       fontWeight: 700,
                       marginBottom: '6px',
                     }}>
@@ -3532,7 +3137,7 @@ function BellCurveApp() {
                     </div>
                     <div style={{
                       fontSize: '13px',
-                      color: themeColors.textMuted,
+                      color: 'rgba(255, 255, 255, 0.6)',
                       fontWeight: 600,
                     }}>
                       {getScoreDescription(test.score)} Range
@@ -3546,9 +3151,9 @@ function BellCurveApp() {
               <div style={{
                 textAlign: 'center',
                 padding: '80px 40px',
-                background: themeColors.cardBgAlt,
+                background: 'rgba(255, 255, 255, 0.04)',
                 borderRadius: '20px',
-                color: themeColors.textMuted,
+                color: 'rgba(255, 255, 255, 0.5)',
               }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>📊</div>
                 <p style={{ fontSize: '18px', margin: 0 }}>
@@ -3561,17 +3166,17 @@ function BellCurveApp() {
             {tests.length > 0 && (
               <>
                 <div style={{
-                  background: themeColors.cardBg,
+                  background: 'rgba(255, 255, 255, 0.04)',
                   borderRadius: '20px',
                   padding: '28px',
                   marginBottom: '32px',
-                  border: `1px solid ${themeColors.cardBorder}`,
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}>
                   <h3 style={{
                     margin: '0 0 20px 0',
                     fontSize: '18px',
                     fontWeight: 700,
-                    color: themeColors.heading,
+                    color: '#c8d6e5',
                     letterSpacing: '1px',
                     textTransform: 'uppercase',
                   }}>
@@ -3580,7 +3185,7 @@ function BellCurveApp() {
                   <p style={{
                     margin: '0 0 12px 0',
                     fontSize: '13px',
-                    color: themeColors.textSecondary,
+                    color: 'rgba(255, 255, 255, 0.6)',
                   }}>
                     Customize the auto-generated summary for this student. Leave blank to use the default narrative.
                   </p>
@@ -3589,7 +3194,7 @@ function BellCurveApp() {
                     onChange={(e) => setSummaryOverride(e.target.value)}
                     placeholder={generateSummary()}
                     className="input-field"
-                    style={{ width: '100%', minHeight: '140px', resize: 'vertical', background: themeColors.inputBg, color: themeColors.text, border: `2px solid ${themeColors.inputBorder}` }}
+                    style={{ width: '100%', minHeight: '140px', resize: 'vertical' }}
                   />
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
                     <button
@@ -3602,17 +3207,17 @@ function BellCurveApp() {
                 </div>
 
                 <div style={{
-                  background: themeColors.cardBg,
+                  background: 'rgba(255, 255, 255, 0.04)',
                   borderRadius: '20px',
                   padding: '28px',
                   marginBottom: '32px',
-                  border: `1px solid ${themeColors.cardBorder}`,
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}>
                   <h3 style={{
                     margin: '0 0 20px 0',
                     fontSize: '18px',
                     fontWeight: 700,
-                    color: themeColors.heading,
+                    color: '#c8d6e5',
                     letterSpacing: '1px',
                     textTransform: 'uppercase',
                   }}>
@@ -3621,7 +3226,7 @@ function BellCurveApp() {
                   <div style={{
                     fontSize: '15px',
                     lineHeight: '1.8',
-                    color: themeColors.text,
+                    color: 'rgba(255, 255, 255, 0.85)',
                     textAlign: 'justify',
                   }}>
                     {computedSummary}
@@ -3678,16 +3283,16 @@ function BellCurveApp() {
             {/* Interpretation Guide */}
             {tests.length > 0 && (
               <div style={{
-                background: themeColors.cardBg,
+                background: 'rgba(255, 255, 255, 0.04)',
                 borderRadius: '20px',
                 padding: '28px',
-                border: `1px solid ${themeColors.cardBorder}`,
+                border: '1px solid rgba(255, 255, 255, 0.08)',
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: themeColors.heading,
+                  color: '#c8d6e5',
                 }}>
                   📖 Score Interpretation Guide
                 </h3>
@@ -3707,7 +3312,7 @@ function BellCurveApp() {
                       key={item.range}
                       style={{
                         padding: '16px',
-                        background: themeColors.cardBgAlt,
+                        background: 'rgba(255, 255, 255, 0.05)',
                         borderRadius: '12px',
                       }}
                     >
@@ -3715,13 +3320,12 @@ function BellCurveApp() {
                         fontSize: '16px',
                         fontWeight: 700,
                         marginBottom: '4px',
-                        color: themeColors.text,
                       }}>
                         {item.range}
                       </div>
                       <div style={{
                         fontSize: '13px',
-                        color: themeColors.textSecondary,
+                        color: 'rgba(255, 255, 255, 0.7)',
                       }}>
                         {item.label} • {item.desc}
                       </div>
@@ -3754,39 +3358,10 @@ function BellCurveApp() {
   );
 }
 
-        const rootElement = document.getElementById('root');
-        const showFatalError = (error) => {
-          if (!rootElement || rootElement.dataset.errorDisplayed) {
-            return;
-          }
-          rootElement.dataset.errorDisplayed = 'true';
-          rootElement.innerHTML = `
-            <div style="padding:24px;margin:32px auto;max-width:640px;font-family:Nunito, sans-serif;background:#ffffff;color:#1a1a2e;border-radius:12px;border:1px solid #e0e0e0;box-shadow:0 12px 30px rgba(0,0,0,0.08);">
-              <h2 style="margin-top:0;">App failed to load</h2>
-              <p style="margin-bottom:0;">Please refresh the page or contact support if this keeps happening.</p>
-              <pre style="margin-top:16px;white-space:pre-wrap;font-size:12px;color:#6b7280;">${String(error)}</pre>
-            </div>
-          `;
-        };
 
-        window.addEventListener('error', (event) => {
-          showFatalError(event.error || event.message);
-        });
 
-        window.addEventListener('unhandledrejection', (event) => {
-          showFatalError(event.reason || 'Unknown error');
-        });
-
-        const root = ReactDOM.createRoot(rootElement);
-
-        // Mark app as mounted to prevent false error messages
-        window.__bellCurveAppMounted = true;
-
-        root.render(
-          <ErrorBoundary>
-            <BellCurveApp />
-          </ErrorBoundary>
-        );
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BellCurveApp />);
     </script>
 </body>
 </html>
