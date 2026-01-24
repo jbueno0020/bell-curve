@@ -412,6 +412,15 @@ function BellCurveApp() {
   const [theme, setTheme] = React.useState('dark'); // 'light' or 'dark'
   const [bellCurveColor, setBellCurveColor] = React.useState('#667eea');
   const [showThemePanel, setShowThemePanel] = React.useState(false);
+  const [showLabelsPanel, setShowLabelsPanel] = React.useState(false);
+
+  // Label style controls for panel inputs
+  const [labelStyles, setLabelStyles] = React.useState({
+    borderRadius: 6,
+    padding: 6,
+    maxWidth: 180,
+    fontSize: 11,
+  });
 
   // Theme colors based on current theme
   const themeColors = React.useMemo(() => {
@@ -3197,6 +3206,17 @@ function BellCurveApp() {
                     minWidth: '260px',
                     border: `1px solid ${themeColors.cardBorder}`,
                   }}>
+              </svg>
+
+              {/* Test Selection Panel */}
+              {tests.length > 0 && (
+                <div style={{
+                  background: themeColors.cardBg,
+                  borderRadius: '20px',
+                  padding: '28px',
+                  marginBottom: '32px',
+                  border: `1px solid ${themeColors.cardBorder}`,
+                }}>
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -3275,6 +3295,8 @@ function BellCurveApp() {
                   </div>
                 )}
               </div>
+                </div>
+              )}
 
               {/* SCORES LIST PANEL */}
               {showScoresList && tests.length > 0 && (
@@ -3700,6 +3722,14 @@ function BellCurveApp() {
             </div>
           `;
         };
+
+        window.addEventListener('error', (event) => {
+          showFatalError(event.error || event.message);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+          showFatalError(event.reason || 'Unknown error');
+        });
 
         window.addEventListener('error', (event) => {
           showFatalError(event.error || event.message);
