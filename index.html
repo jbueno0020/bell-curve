@@ -3913,6 +3913,11 @@ function BellCurveApp() {
           showFatalError(event.error || event.message);
         });
 
+
+        window.addEventListener('error', (event) => {
+          showFatalError(event.error || event.message);
+        });
+
         window.addEventListener('unhandledrejection', (event) => {
           showFatalError(event.reason || 'Unknown error');
         });
