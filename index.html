@@ -20,6 +20,53 @@
 <body>
     <div id="root"></div>
     <script>
+      // Enhanced error detection and CDN load verification
+      window.__bellCurveAppMounted = false;
+
+      // Check if CDN libraries loaded
+      function checkDependencies() {
+        const issues = [];
+        if (typeof React === 'undefined') issues.push('React library failed to load');
+        if (typeof ReactDOM === 'undefined') issues.push('ReactDOM library failed to load');
+        if (typeof Babel === 'undefined') issues.push('Babel library failed to load');
+        return issues;
+      }
+
+      // Show error message with details
+      function showLoadError(issues) {
+        const root = document.getElementById('root');
+        if (!root) return;
+
+        const issueList = issues.length > 0
+          ? `<ul style="text-align:left;margin:16px 0;padding-left:20px;">${issues.map(i => `<li>${i}</li>`).join('')}</ul>`
+          : '';
+
+        root.innerHTML = `
+          <div style="padding:24px;margin:32px auto;max-width:640px;font-family:Nunito, sans-serif;background:#ffffff;color:#1a1a2e;border-radius:12px;border:1px solid #e0e0e0;box-shadow:0 12px 30px rgba(0,0,0,0.08);">
+            <h2 style="margin-top:0;color:#dc3545;">⚠️ App Failed to Load</h2>
+            ${issueList}
+            <p style="margin:16px 0 8px 0;"><strong>Troubleshooting:</strong></p>
+            <ul style="text-align:left;margin:8px 0;padding-left:20px;font-size:14px;line-height:1.6;">
+              <li>Check your internet connection</li>
+              <li>Verify that unpkg.com is accessible</li>
+              <li>Try refreshing the page</li>
+              <li>Check browser console for errors (F12)</li>
+            </ul>
+            <p style="margin-top:16px;font-size:12px;color:#6c757d;">If issues persist, this may be a GitHub Pages configuration problem.</p>
+          </div>
+        `;
+      }
+
+      // Wait for page load, then check if app mounted
+      window.addEventListener('load', () => {
+        // Give Babel time to transpile and React time to render (increased to 3s for slow connections)
+        setTimeout(() => {
+          const root = document.getElementById('root');
+          if (!window.__bellCurveAppMounted && root && root.children.length === 0) {
+            const issues = checkDependencies();
+            showLoadError(issues);
+          }
+        }, 3000);
       window.__bellCurveAppMounted = false;
       window.addEventListener('load', () => {
         setTimeout(() => {
@@ -3731,6 +3778,10 @@ function BellCurveApp() {
         });
 
         const root = ReactDOM.createRoot(rootElement);
+
+        // Mark app as mounted to prevent false error messages
+        window.__bellCurveAppMounted = true;
+
         root.render(
           <ErrorBoundary>
             <BellCurveApp />
