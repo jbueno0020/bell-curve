@@ -352,6 +352,9 @@ function BellCurveApp() {
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
   const [showAutocomplete, setShowAutocomplete] = React.useState(false);
   const autocompleteRef = React.useRef(null);
+  const autocompleteInputRef = React.useRef(null);
+  const autocompleteMenuRef = React.useRef(null);
+  const [autocompleteStyles, setAutocompleteStyles] = React.useState(null);
 
   // Edit test state
   const [editingTestId, setEditingTestId] = React.useState(null);
@@ -660,13 +663,50 @@ function BellCurveApp() {
   // Close autocomplete when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event) => {
-      if (autocompleteRef.current && !autocompleteRef.current.contains(event.target)) {
+      const isInsideInput = autocompleteRef.current?.contains(event.target);
+      const isInsideMenu = autocompleteMenuRef.current?.contains(event.target);
+      if (!isInsideInput && !isInsideMenu) {
         setShowAutocomplete(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const updateAutocompletePosition = React.useCallback(() => {
+    if (!autocompleteInputRef.current) {
+      return;
+    }
+    const rect = autocompleteInputRef.current.getBoundingClientRect();
+    const viewportPadding = 16;
+    const availableWidth = Math.max(window.innerWidth - viewportPadding * 2, 0);
+    const width = Math.min(rect.width, availableWidth);
+    const left = Math.min(
+      Math.max(rect.left, viewportPadding),
+      window.innerWidth - width - viewportPadding
+    );
+    setAutocompleteStyles({
+      position: 'fixed',
+      top: rect.bottom + 6,
+      left,
+      width,
+      zIndex: 10000,
+    });
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!showAutocomplete || autocompleteSuggestions.length === 0) {
+      return undefined;
+    }
+    updateAutocompletePosition();
+    const handleReposition = () => updateAutocompletePosition();
+    window.addEventListener('resize', handleReposition);
+    window.addEventListener('scroll', handleReposition, true);
+    return () => {
+      window.removeEventListener('resize', handleReposition);
+      window.removeEventListener('scroll', handleReposition, true);
+    };
+  }, [showAutocomplete, autocompleteSuggestions.length, updateAutocompletePosition]);
 
   const addTest = () => {
     if (newTest.name && newTest.score) {
@@ -2251,24 +2291,23 @@ function BellCurveApp() {
                       placeholder="Test/Section Name"
                       value={newTest.name}
                       onChange={handleTestNameChange}
+                      ref={autocompleteInputRef}
                       className="input-field"
                       style={{ width: '100%' }}
                     />
-                    {showAutocomplete && autocompleteSuggestions.length > 0 && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: '12px',
-                        marginTop: '4px',
-                        maxHeight: '300px',
-                        overflowY: 'auto',
-                        zIndex: 1000,
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
-                      }}>
+                    {showAutocomplete && autocompleteSuggestions.length > 0 && autocompleteStyles && ReactDOM.createPortal(
+                      <div
+                        ref={autocompleteMenuRef}
+                        style={{
+                          ...autocompleteStyles,
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '12px',
+                          maxHeight: '300px',
+                          overflowY: 'auto',
+                          boxShadow: 'var(--shadow)',
+                        }}
+                      >
                         {autocompleteSuggestions.map((suggestion, index) => {
                           const isParentTest = typeof suggestion === 'object' && suggestion.subtests;
                           const displayName = typeof suggestion === 'string' ? suggestion : suggestion.name;
@@ -2282,10 +2321,11 @@ function BellCurveApp() {
                                 padding: '12px 16px',
                                 cursor: 'pointer',
                                 borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid var(--border)' : 'none',
-                                transition: 'all 0.2s ease',
+                                transition: 'background 0.2s ease',
+                                color: 'var(--text)',
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'var(--chip-bg)';
+                                e.currentTarget.style.background = 'var(--surface-2)';
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.background = 'transparent';
@@ -2301,7 +2341,7 @@ function BellCurveApp() {
                               {isParentTest && (
                                 <div style={{
                                   fontSize: '11px',
-                                  color: 'rgba(78, 205, 196, 0.8)',
+                                  color: 'var(--text-subtle)',
                                   marginTop: '4px',
                                   fontStyle: 'italic',
                                 }}>
@@ -2311,7 +2351,8 @@ function BellCurveApp() {
                             </div>
                           );
                         })}
-                      </div>
+                      </div>,
+                      document.body
                     )}
                   </div>
                   <input
