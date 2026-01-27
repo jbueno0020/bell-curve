@@ -1060,6 +1060,8 @@ function BellCurveApp() {
           --ui-chart-bg: var(--surface);
           --ui-swatch-border: rgba(27, 31, 46, 0.4);
           --ui-swatch-shadow: rgba(27, 31, 46, 0.2);
+          --ui-dropdown-bg: #ffffff;
+          --ui-dropdown-item-hover: #f2f5fb;
         }
 
         [data-theme="dark"] {
@@ -1110,6 +1112,8 @@ function BellCurveApp() {
           --ui-chart-bg: rgba(255, 255, 255, 0.02);
           --ui-swatch-border: white;
           --ui-swatch-shadow: rgba(255, 255, 255, 0.5);
+          --ui-dropdown-bg: #2a2a4a;
+          --ui-dropdown-item-hover: #3a3a5a;
         }
 
         * {
@@ -2300,7 +2304,7 @@ function BellCurveApp() {
                         ref={autocompleteMenuRef}
                         style={{
                           ...autocompleteStyles,
-                          background: 'var(--surface)',
+                          background: 'var(--ui-dropdown-bg)',
                           border: '1px solid var(--border)',
                           borderRadius: '12px',
                           maxHeight: '300px',
@@ -2325,10 +2329,10 @@ function BellCurveApp() {
                                 color: 'var(--text)',
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'var(--surface-2)';
+                                e.currentTarget.style.background = 'var(--ui-dropdown-item-hover)';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.background = 'var(--ui-dropdown-bg)';
                               }}
                             >
                               <div style={{
