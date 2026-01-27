@@ -2223,14 +2223,16 @@ function BellCurveApp() {
                         top: '100%',
                         left: 0,
                         right: 0,
-                        background: '#1a1a2e',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        background: theme === 'dark' ? 'rgba(26, 26, 46, 0.98)' : themeColors.cardBg,
+                        border: `2px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : themeColors.cardBorder}`,
                         borderRadius: '12px',
                         marginTop: '4px',
                         maxHeight: '300px',
                         overflowY: 'auto',
                         zIndex: 1000,
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+                        boxShadow: theme === 'dark'
+                          ? '0 8px 32px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1)'
+                          : '0 8px 24px rgba(0, 0, 0, 0.15)',
                       }}>
                         {autocompleteSuggestions.map((suggestion, index) => {
                           const isParentTest = typeof suggestion === 'object' && suggestion.subtests;
@@ -2244,19 +2246,28 @@ function BellCurveApp() {
                               style={{
                                 padding: '12px 16px',
                                 cursor: 'pointer',
-                                borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
+                                background: theme === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'transparent',
+                                borderBottom: index < autocompleteSuggestions.length - 1
+                                  ? `1px solid ${theme === 'dark' ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)'}`
+                                  : 'none',
                                 transition: 'all 0.2s ease',
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(102, 126, 234, 0.2)';
+                                e.currentTarget.style.background = theme === 'dark'
+                                  ? 'rgba(102, 126, 234, 0.25)'
+                                  : 'rgba(102, 126, 234, 0.1)';
                               }}
                               onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.background = theme === 'dark'
+                                  ? 'rgba(255, 255, 255, 0.03)'
+                                  : 'transparent';
                               }}
                             >
                               <div style={{
                                 fontSize: '14px',
-                                color: isParentTest ? '#4ECDC4' : 'rgba(255, 255, 255, 0.85)',
+                                color: isParentTest
+                                  ? '#4ECDC4'
+                                  : (theme === 'dark' ? 'rgba(255, 255, 255, 0.9)' : themeColors.text),
                                 fontWeight: isParentTest ? 600 : 400,
                               }}>
                                 {isParentTest && '📋 '}{displayName}
@@ -2264,7 +2275,7 @@ function BellCurveApp() {
                               {isParentTest && (
                                 <div style={{
                                   fontSize: '11px',
-                                  color: 'rgba(78, 205, 196, 0.7)',
+                                  color: theme === 'dark' ? 'rgba(78, 205, 196, 0.8)' : 'rgba(78, 205, 196, 0.9)',
                                   marginTop: '4px',
                                   fontStyle: 'italic',
                                 }}>
