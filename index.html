@@ -352,6 +352,9 @@ function BellCurveApp() {
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
   const [showAutocomplete, setShowAutocomplete] = React.useState(false);
   const autocompleteRef = React.useRef(null);
+  const autocompleteInputRef = React.useRef(null);
+  const autocompleteMenuRef = React.useRef(null);
+  const [autocompleteStyles, setAutocompleteStyles] = React.useState(null);
 
   // Edit test state
   const [editingTestId, setEditingTestId] = React.useState(null);
@@ -362,36 +365,19 @@ function BellCurveApp() {
   const [bellCurveColor, setBellCurveColor] = React.useState('#667eea');
   const [showThemePanel, setShowThemePanel] = React.useState(false);
 
-  // Theme colors based on current theme
-  const themeColors = React.useMemo(() => {
-    if (theme === 'light') {
-      return {
-        background: 'linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%)',
-        cardBg: 'rgba(255, 255, 255, 0.9)',
-        cardBorder: 'rgba(0, 0, 0, 0.15)',
-        text: '#1a1a2e',
-        textSecondary: 'rgba(26, 26, 46, 0.8)',
-        textMuted: 'rgba(26, 26, 46, 0.65)',
-        inputBg: 'rgba(255, 255, 255, 0.95)',
-        inputBorder: 'rgba(0, 0, 0, 0.3)',
-        chartBg: '#ffffff',
-        panelBg: 'linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)',
-      };
-    } else {
-      return {
-        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-        cardBg: 'rgba(255, 255, 255, 0.04)',
-        cardBorder: 'rgba(255, 255, 255, 0.08)',
-        text: '#f8f9fa',
-        textSecondary: 'rgba(255, 255, 255, 0.85)',
-        textMuted: 'rgba(255, 255, 255, 0.5)',
-        inputBg: 'rgba(255, 255, 255, 0.05)',
-        inputBorder: 'rgba(255, 255, 255, 0.1)',
-        chartBg: 'rgba(255, 255, 255, 0.02)',
-        panelBg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-      };
-    }
-  }, [theme]);
+  // Theme colors based on current theme (driven by CSS variables)
+  const themeColors = React.useMemo(() => ({
+    background: 'var(--bg)',
+    cardBg: 'var(--surface)',
+    cardBorder: 'var(--border)',
+    text: 'var(--text)',
+    textSecondary: 'var(--text-muted)',
+    textMuted: 'var(--text-subtle)',
+    inputBg: 'var(--input-bg)',
+    inputBorder: 'var(--border)',
+    chartBg: 'var(--surface-2)',
+    panelBg: 'var(--surface-2)',
+  }), [theme]);
 
   // Load branding and profiles from localStorage on mount
   React.useEffect(() => {
@@ -677,13 +663,43 @@ function BellCurveApp() {
   // Close autocomplete when clicking outside
   React.useEffect(() => {
     const handleClickOutside = (event) => {
-      if (autocompleteRef.current && !autocompleteRef.current.contains(event.target)) {
+      const isInsideInput = autocompleteRef.current?.contains(event.target);
+      const isInsideMenu = autocompleteMenuRef.current?.contains(event.target);
+      if (!isInsideInput && !isInsideMenu) {
         setShowAutocomplete(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const updateAutocompletePosition = React.useCallback(() => {
+    if (!autocompleteInputRef.current) {
+      return;
+    }
+    const rect = autocompleteInputRef.current.getBoundingClientRect();
+    setAutocompleteStyles({
+      position: 'fixed',
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: rect.width,
+      zIndex: 10000,
+    });
+  }, []);
+
+  React.useLayoutEffect(() => {
+    if (!showAutocomplete || autocompleteSuggestions.length === 0) {
+      return undefined;
+    }
+    updateAutocompletePosition();
+    const handleReposition = () => updateAutocompletePosition();
+    window.addEventListener('resize', handleReposition);
+    window.addEventListener('scroll', handleReposition, true);
+    return () => {
+      window.removeEventListener('resize', handleReposition);
+      window.removeEventListener('scroll', handleReposition, true);
+    };
+  }, [showAutocomplete, autocompleteSuggestions.length, updateAutocompletePosition]);
 
   const addTest = () => {
     if (newTest.name && newTest.score) {
@@ -990,29 +1006,83 @@ function BellCurveApp() {
 
         /* Theme CSS Variables */
         :root {
-          --ui-btn-inactive-bg: rgba(0, 0, 0, 0.08);
-          --ui-btn-inactive-text: rgba(0, 0, 0, 0.75);
-          --ui-btn-inactive-hover-bg: rgba(0, 0, 0, 0.15);
-          --ui-btn-inactive-hover-text: rgba(0, 0, 0, 0.95);
-          --ui-card-bg: rgba(0, 0, 0, 0.04);
-          --ui-card-hover-bg: rgba(0, 0, 0, 0.08);
-          --ui-card-border: rgba(0, 0, 0, 0.15);
-          --ui-input-bg: rgba(0, 0, 0, 0.05);
-          --ui-input-border: rgba(0, 0, 0, 0.3);
-          --ui-input-focus-bg: rgba(0, 0, 0, 0.08);
-          --ui-input-text: #1a1a2e;
-          --ui-input-placeholder: rgba(0, 0, 0, 0.55);
-          --ui-control-bg: rgba(0, 0, 0, 0.1);
-          --ui-control-hover-bg: rgba(0, 0, 0, 0.2);
-          --ui-control-text: rgba(0, 0, 0, 0.87);
-          --ui-control-hover-text: #000000;
-          --ui-checkbox-border: rgba(0, 0, 0, 0.45);
-          --ui-chart-bg: rgba(0, 0, 0, 0.02);
-          --ui-swatch-border: rgba(0, 0, 0, 0.45);
-          --ui-swatch-shadow: rgba(0, 0, 0, 0.4);
+          --bg: linear-gradient(135deg, #f7f9fd 0%, #e6edf8 100%);
+          --surface: #ffffff;
+          --surface-2: #f2f5fb;
+          --text: #1b1f2e;
+          --text-muted: #3b455c;
+          --text-subtle: #5b657a;
+          --border: #d2d8e5;
+          --shadow: 0 20px 60px rgba(27, 31, 46, 0.14);
+          --primary: #5b6eea;
+          --primary-contrast: #ffffff;
+          --input-bg: #ffffff;
+          --input-text: #1b1f2e;
+          --input-placeholder: #6f798f;
+          --chip-bg: rgba(91, 110, 234, 0.12);
+          --chip-text: #3647a8;
+          --header-bg: #f4f7fc;
+          --header-border: #d2d8e5;
+          --title-gradient: linear-gradient(135deg, #1f2a52 0%, #4b5ec2 100%);
+          --info-bg: linear-gradient(135deg, rgba(91, 110, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 100%);
+          --info-border: rgba(91, 110, 234, 0.35);
+          --chart-grid: rgba(27, 31, 46, 0.18);
+          --chart-label: #2c344b;
+          --chart-label-muted: #4b556b;
+          --chart-label-subtle: #6c7489;
+          --chart-average: rgba(27, 31, 46, 0.08);
+          --chart-bell-fill: rgba(91, 110, 234, 0.15);
+
+          --ui-btn-inactive-bg: rgba(27, 31, 46, 0.08);
+          --ui-btn-inactive-text: var(--text-muted);
+          --ui-btn-inactive-hover-bg: rgba(27, 31, 46, 0.14);
+          --ui-btn-inactive-hover-text: var(--text);
+          --ui-card-bg: var(--surface);
+          --ui-card-hover-bg: var(--surface-2);
+          --ui-card-border: var(--border);
+          --ui-input-bg: var(--input-bg);
+          --ui-input-border: var(--border);
+          --ui-input-focus-bg: #eef2ff;
+          --ui-input-text: var(--input-text);
+          --ui-input-placeholder: var(--input-placeholder);
+          --ui-control-bg: var(--surface-2);
+          --ui-control-hover-bg: #e4e9f6;
+          --ui-control-text: var(--text);
+          --ui-control-hover-text: var(--text);
+          --ui-checkbox-border: #b8c1d6;
+          --ui-chart-bg: var(--surface);
+          --ui-swatch-border: rgba(27, 31, 46, 0.4);
+          --ui-swatch-shadow: rgba(27, 31, 46, 0.2);
         }
 
         [data-theme="dark"] {
+          --bg: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+          --surface: rgba(255, 255, 255, 0.04);
+          --surface-2: rgba(255, 255, 255, 0.06);
+          --text: #f8f9fa;
+          --text-muted: rgba(255, 255, 255, 0.85);
+          --text-subtle: rgba(255, 255, 255, 0.5);
+          --border: rgba(255, 255, 255, 0.08);
+          --shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          --primary: #667eea;
+          --primary-contrast: #ffffff;
+          --input-bg: rgba(255, 255, 255, 0.05);
+          --input-text: #f8f9fa;
+          --input-placeholder: rgba(255, 255, 255, 0.4);
+          --chip-bg: rgba(102, 126, 234, 0.2);
+          --chip-text: #f8f9fa;
+          --header-bg: rgba(0, 0, 0, 0.2);
+          --header-border: rgba(255, 255, 255, 0.08);
+          --title-gradient: linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%);
+          --info-bg: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+          --info-border: rgba(102, 126, 234, 0.3);
+          --chart-grid: rgba(255, 255, 255, 0.1);
+          --chart-label: rgba(255, 255, 255, 0.8);
+          --chart-label-muted: rgba(255, 255, 255, 0.5);
+          --chart-label-subtle: rgba(255, 255, 255, 0.4);
+          --chart-average: rgba(0, 0, 0, 0.25);
+          --chart-bell-fill: rgba(102, 126, 234, 0.15);
+
           --ui-btn-inactive-bg: rgba(255, 255, 255, 0.08);
           --ui-btn-inactive-text: rgba(255, 255, 255, 0.6);
           --ui-btn-inactive-hover-bg: rgba(255, 255, 255, 0.15);
@@ -1217,14 +1287,14 @@ function BellCurveApp() {
           padding: 40px;
           backdrop-filter: blur(20px);
           border: 1px solid var(--ui-card-border);
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+          box-shadow: var(--shadow);
         }
         
         .info-panel {
-          background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+          background: var(--info-bg);
           border-radius: 16px;
           padding: 24px;
-          border: 1px solid rgba(102, 126, 234, 0.3);
+          border: 1px solid var(--info-border);
           margin-top: 20px;
         }
         
@@ -1268,7 +1338,7 @@ function BellCurveApp() {
         }
         
         .checkmark {
-          color: #1a1a2e;
+          color: var(--text);
           font-size: 14px;
           font-weight: 800;
         }
@@ -1414,17 +1484,17 @@ function BellCurveApp() {
         }
 
         .profile-card {
-          background: rgba(255, 255, 255, 0.06);
+          background: var(--surface);
           border-radius: 12px;
           padding: 16px;
           cursor: pointer;
           transition: all 0.2s ease;
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          border: 1px solid var(--border);
         }
 
         .profile-card:hover {
-          background: rgba(255, 255, 255, 0.1);
-          border-color: rgba(255, 255, 255, 0.15);
+          background: var(--surface-2);
+          border-color: var(--border);
           transform: translateY(-2px);
         }
 
@@ -1472,11 +1542,11 @@ function BellCurveApp() {
       {/* Header */}
       <div style={{
         padding: '30px 40px',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        borderBottom: '1px solid var(--header-border)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        background: 'rgba(0, 0, 0, 0.2)',
+        background: 'var(--header-bg)',
         backdropFilter: 'blur(20px)',
       }}>
         <div>
@@ -1485,7 +1555,7 @@ function BellCurveApp() {
             fontSize: '32px',
             fontWeight: 700,
             margin: 0,
-            background: 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
+            background: 'var(--title-gradient)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             letterSpacing: '-0.5px',
@@ -1591,7 +1661,7 @@ function BellCurveApp() {
             border: `1px solid ${themeColors.cardBorder}`,
             maxHeight: '80vh',
             overflowY: 'auto',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            boxShadow: 'var(--shadow)',
           }}>
             <h2 style={{
               margin: '0 0 30px 0',
@@ -1649,10 +1719,10 @@ function BellCurveApp() {
                         maxWidth: '200px',
                         maxHeight: '100px',
                         objectFit: 'contain',
-                        border: '2px solid rgba(255, 255, 255, 0.1)',
+                        border: `2px solid ${themeColors.cardBorder}`,
                         borderRadius: '8px',
                         padding: '10px',
-                        background: 'rgba(255, 255, 255, 0.05)',
+                        background: 'var(--surface-2)',
                       }}
                     />
                   </div>
@@ -1676,10 +1746,10 @@ function BellCurveApp() {
                   style={{
                     width: '100%',
                     height: '50px',
-                    border: '2px solid rgba(255, 255, 255, 0.1)',
+                    border: `2px solid ${themeColors.cardBorder}`,
                     borderRadius: '12px',
                     cursor: 'pointer',
-                    background: 'rgba(255, 255, 255, 0.05)',
+                    background: 'var(--surface-2)',
                   }}
                 />
               </div>
@@ -1859,7 +1929,7 @@ function BellCurveApp() {
                   Preview
                 </p>
                 <div style={{
-                  background: theme === 'light' ? '#ffffff' : '#1a1a2e',
+                  background: 'var(--surface)',
                   borderRadius: '12px',
                   padding: '16px',
                   display: 'flex',
@@ -1922,7 +1992,7 @@ function BellCurveApp() {
             border: `1px solid ${themeColors.cardBorder}`,
             maxHeight: '80vh',
             overflowY: 'auto',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            boxShadow: 'var(--shadow)',
           }}>
             <h2 style={{
               margin: '0 0 30px 0',
@@ -2066,7 +2136,7 @@ function BellCurveApp() {
             border: `1px solid ${themeColors.cardBorder}`,
             maxHeight: '80vh',
             overflowY: 'auto',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+            boxShadow: 'var(--shadow)',
           }}>
             <h2 style={{
               margin: '0 0 30px 0',
@@ -2083,12 +2153,12 @@ function BellCurveApp() {
                   background: themeColors.inputBg,
                   borderRadius: '16px',
                   padding: '18px 20px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  border: `1px solid ${themeColors.cardBorder}`,
                 }}>
                   <div style={{
                     fontSize: '14px',
                     fontWeight: 700,
-                    color: '#c8d6e5',
+                    color: themeColors.text,
                     marginBottom: '8px',
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
@@ -2130,17 +2200,17 @@ function BellCurveApp() {
             <div>
               {/* Student Info */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 padding: '28px',
                 marginBottom: '28px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${themeColors.cardBorder}`,
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
@@ -2176,7 +2246,7 @@ function BellCurveApp() {
                   <div style={{
                     marginTop: '12px',
                     padding: '8px 12px',
-                    background: 'rgba(0, 184, 148, 0.15)',
+                    background: 'rgba(0, 184, 148, 0.18)',
                     borderRadius: '8px',
                     fontSize: '13px',
                     color: '#00b894',
@@ -2190,17 +2260,17 @@ function BellCurveApp() {
 
               {/* Add Test */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 padding: '28px',
                 marginBottom: '28px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${themeColors.cardBorder}`,
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
@@ -2214,24 +2284,23 @@ function BellCurveApp() {
                       placeholder="Test/Section Name"
                       value={newTest.name}
                       onChange={handleTestNameChange}
+                      ref={autocompleteInputRef}
                       className="input-field"
                       style={{ width: '100%' }}
                     />
-                    {showAutocomplete && autocompleteSuggestions.length > 0 && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        background: '#1a1a2e',
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '12px',
-                        marginTop: '4px',
-                        maxHeight: '300px',
-                        overflowY: 'auto',
-                        zIndex: 1000,
-                        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
-                      }}>
+                    {showAutocomplete && autocompleteSuggestions.length > 0 && autocompleteStyles && ReactDOM.createPortal(
+                      <div
+                        ref={autocompleteMenuRef}
+                        style={{
+                          ...autocompleteStyles,
+                          background: 'var(--surface)',
+                          border: '1px solid var(--border)',
+                          borderRadius: '12px',
+                          maxHeight: '300px',
+                          overflowY: 'auto',
+                          boxShadow: 'var(--shadow)',
+                        }}
+                      >
                         {autocompleteSuggestions.map((suggestion, index) => {
                           const isParentTest = typeof suggestion === 'object' && suggestion.subtests;
                           const displayName = typeof suggestion === 'string' ? suggestion : suggestion.name;
@@ -2244,11 +2313,12 @@ function BellCurveApp() {
                               style={{
                                 padding: '12px 16px',
                                 cursor: 'pointer',
-                                borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid rgba(255, 255, 255, 0.05)' : 'none',
-                                transition: 'all 0.2s ease',
+                                borderBottom: index < autocompleteSuggestions.length - 1 ? '1px solid var(--border)' : 'none',
+                                transition: 'background 0.2s ease',
+                                color: 'var(--text)',
                               }}
                               onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(102, 126, 234, 0.2)';
+                                e.currentTarget.style.background = 'var(--surface-2)';
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.background = 'transparent';
@@ -2256,7 +2326,7 @@ function BellCurveApp() {
                             >
                               <div style={{
                                 fontSize: '14px',
-                                color: isParentTest ? '#4ECDC4' : 'rgba(255, 255, 255, 0.85)',
+                                color: isParentTest ? '#4ECDC4' : 'var(--text)',
                                 fontWeight: isParentTest ? 600 : 400,
                               }}>
                                 {isParentTest && '📋 '}{displayName}
@@ -2264,7 +2334,7 @@ function BellCurveApp() {
                               {isParentTest && (
                                 <div style={{
                                   fontSize: '11px',
-                                  color: 'rgba(78, 205, 196, 0.7)',
+                                  color: 'var(--text-subtle)',
                                   marginTop: '4px',
                                   fontStyle: 'italic',
                                 }}>
@@ -2274,7 +2344,8 @@ function BellCurveApp() {
                             </div>
                           );
                         })}
-                      </div>
+                      </div>,
+                      document.body
                     )}
                   </div>
                   <input
@@ -2295,7 +2366,7 @@ function BellCurveApp() {
                     marginBottom: '12px',
                     fontSize: '13px',
                     fontWeight: 600,
-                    color: themeColors.textMuted,
+                    color: themeColors.textSecondary,
                     textTransform: 'uppercase',
                     letterSpacing: '1px',
                   }}>
@@ -2320,7 +2391,7 @@ function BellCurveApp() {
                         width: '32px',
                         height: '32px',
                         borderRadius: '8px',
-                        border: '3px solid rgba(255, 255, 255, 0.3)',
+                        border: '2px solid var(--border)',
                         cursor: 'pointer',
                         background: 'transparent',
                       }}
@@ -2340,16 +2411,16 @@ function BellCurveApp() {
 
               {/* Test List */}
               <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 padding: '28px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${themeColors.cardBorder}`,
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
@@ -2402,11 +2473,11 @@ function BellCurveApp() {
                                           width: '28px',
                                           height: '28px',
                                           borderRadius: '50%',
-                                          backgroundColor: color.value,
-                                          cursor: 'pointer',
-                                          border: editingTest.color === color.value ? '3px solid #ffffff' : '2px solid rgba(255, 255, 255, 0.2)',
-                                          transition: 'all 0.2s ease',
-                                        }}
+                                        backgroundColor: color.value,
+                                        cursor: 'pointer',
+                                        border: editingTest.color === color.value ? '3px solid var(--primary-contrast)' : '2px solid var(--border)',
+                                        transition: 'all 0.2s ease',
+                                      }}
                                         onClick={() => setEditingTest({ ...editingTest, color: color.value })}
                                         title={color.name}
                                       />
@@ -2485,7 +2556,7 @@ function BellCurveApp() {
                   margin: '0 0 24px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                   letterSpacing: '1px',
                   textTransform: 'uppercase',
                 }}>
@@ -2494,22 +2565,22 @@ function BellCurveApp() {
                 
                 <svg viewBox="0 0 800 380" style={{ width: '100%', height: 'auto' }}>
                   {/* Grid lines */}
-                  {[55, 70, 85, 100, 115, 130, 145].map((score) => (
-                    <line
-                      key={score}
-                      x1={getScoreX(score)}
-                      y1={chartTopPadding}
-                      x2={getScoreX(score)}
-                      y2={chartBottomY}
-                      stroke="rgba(255, 255, 255, 0.1)"
-                      strokeDasharray="4,4"
-                    />
-                  ))}
+                {[55, 70, 85, 100, 115, 130, 145].map((score) => (
+                  <line
+                    key={score}
+                    x1={getScoreX(score)}
+                    y1={chartTopPadding}
+                    x2={getScoreX(score)}
+                    y2={chartBottomY}
+                    stroke="var(--chart-grid)"
+                    strokeDasharray="4,4"
+                  />
+                ))}
 
                   {/* Average range highlight (85-115) */}
                   <path
                     d={averageAreaPath}
-                    fill="rgba(0, 0, 0, 0.25)"
+                    fill="var(--chart-average)"
                   />
 
                   {/* Bell curve */}
@@ -2536,7 +2607,7 @@ function BellCurveApp() {
                         x={getScoreX(score)}
                         y="330"
                         textAnchor="middle"
-                        fill="rgba(255, 255, 255, 0.7)"
+                        fill="var(--chart-label)"
                         fontSize="12"
                         fontWeight="600"
                         fontFamily="Nunito, sans-serif"
@@ -2547,7 +2618,7 @@ function BellCurveApp() {
                         x={getScoreX(score)}
                         y="350"
                         textAnchor="middle"
-                        fill="rgba(255, 255, 255, 0.4)"
+                        fill="var(--chart-label-subtle)"
                         fontSize="9"
                         fontFamily="Nunito, sans-serif"
                       >
@@ -2561,7 +2632,7 @@ function BellCurveApp() {
                     x={getScoreX(100)}
                     y="370"
                     textAnchor="middle"
-                    fill="rgba(255, 255, 255, 0.5)"
+                    fill="var(--chart-label-muted)"
                     fontSize="10"
                     fontFamily="Nunito, sans-serif"
                     fontWeight="600"
@@ -2653,7 +2724,7 @@ function BellCurveApp() {
                   margin: '0 0 12px 0',
                   fontSize: '14px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                 }}>
                   ℹ️ Understanding the Bell Curve
                 </h4>
@@ -2712,7 +2783,7 @@ function BellCurveApp() {
                   fontSize: '42px',
                   fontWeight: 700,
                   margin: '0 0 10px 0',
-                  background: 'linear-gradient(135deg, #f8f9fa 0%, #c8d6e5 100%)',
+                  background: 'var(--title-gradient)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                 }}>
@@ -2767,7 +2838,7 @@ function BellCurveApp() {
                     y1={chartTopPadding}
                     x2={getScoreX(score)}
                     y2={chartBottomY}
-                    stroke="rgba(255, 255, 255, 0.1)"
+                    stroke="var(--chart-grid)"
                     strokeDasharray="4,4"
                   />
                 ))}
@@ -2775,13 +2846,13 @@ function BellCurveApp() {
                 {/* Average range highlight (85-115) */}
                 <path
                   d={averageAreaPath}
-                  fill="rgba(0, 0, 0, 0.25)"
+                  fill="var(--chart-average)"
                 />
 
                 {/* Bell curve */}
                 <path
                   d={bellPath}
-                  fill="rgba(102, 126, 234, 0.15)"
+                  fill="var(--chart-bell-fill)"
                   stroke="url(#curveGradientPres)"
                   strokeWidth="3"
                 />
@@ -2812,7 +2883,7 @@ function BellCurveApp() {
                       x={getScoreX(score)}
                       y="330"
                       textAnchor="middle"
-                      fill="rgba(255, 255, 255, 0.8)"
+                      fill="var(--chart-label)"
                       fontSize="14"
                       fontWeight="700"
                       fontFamily="Nunito, sans-serif"
@@ -2823,7 +2894,7 @@ function BellCurveApp() {
                       x={getScoreX(score)}
                       y="350"
                       textAnchor="middle"
-                      fill="rgba(255, 255, 255, 0.5)"
+                      fill="var(--chart-label-muted)"
                       fontSize="11"
                       fontFamily="Nunito, sans-serif"
                     >
@@ -2833,7 +2904,7 @@ function BellCurveApp() {
                       x={getScoreX(score)}
                       y="365"
                       textAnchor="middle"
-                      fill="rgba(255, 255, 255, 0.4)"
+                      fill="var(--chart-label-subtle)"
                       fontSize="9"
                       fontFamily="Nunito, sans-serif"
                       fontStyle="italic"
@@ -2848,7 +2919,7 @@ function BellCurveApp() {
                   x={getScoreX(100)}
                   y="390"
                   textAnchor="middle"
-                  fill="rgba(255, 255, 255, 0.6)"
+                  fill="var(--chart-label-muted)"
                   fontSize="12"
                   fontFamily="Nunito, sans-serif"
                   fontWeight="600"
@@ -3042,11 +3113,11 @@ function BellCurveApp() {
             {/* Test Selection Panel */}
             {tests.length > 0 && (
               <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 padding: '28px',
                 marginBottom: '32px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${themeColors.cardBorder}`,
               }}>
                 <div style={{
                   display: 'flex',
@@ -3058,7 +3129,7 @@ function BellCurveApp() {
                     margin: 0,
                     fontSize: '18px',
                     fontWeight: 700,
-                    color: '#c8d6e5',
+                    color: themeColors.text,
                     letterSpacing: '1px',
                     textTransform: 'uppercase',
                   }}>
@@ -3138,12 +3209,12 @@ function BellCurveApp() {
                   <div
                     key={test.id}
                     style={{
-                      background: 'rgba(255, 255, 255, 0.04)',
+                      background: themeColors.cardBg,
                       borderRadius: '16px',
                       padding: '20px',
                       borderLeft: `5px solid ${test.color}`,
                       backdropFilter: 'blur(10px)',
-                      border: `1px solid rgba(255, 255, 255, 0.08)`,
+                      border: `1px solid ${themeColors.cardBorder}`,
                       borderLeftWidth: '5px',
                       borderLeftColor: test.color,
                     }}
@@ -3203,7 +3274,7 @@ function BellCurveApp() {
               <div style={{
                 textAlign: 'center',
                 padding: '80px 40px',
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 color: themeColors.textMuted,
               }}>
@@ -3218,17 +3289,17 @@ function BellCurveApp() {
             {tests.length > 0 && (
               <>
                 <div style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
+                  background: themeColors.cardBg,
                   borderRadius: '20px',
                   padding: '28px',
                   marginBottom: '32px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  border: `1px solid ${themeColors.cardBorder}`,
                 }}>
                   <h3 style={{
                     margin: '0 0 20px 0',
                     fontSize: '18px',
                     fontWeight: 700,
-                    color: '#c8d6e5',
+                    color: themeColors.text,
                     letterSpacing: '1px',
                     textTransform: 'uppercase',
                   }}>
@@ -3259,17 +3330,17 @@ function BellCurveApp() {
                 </div>
 
                 <div style={{
-                  background: 'rgba(255, 255, 255, 0.04)',
+                  background: themeColors.cardBg,
                   borderRadius: '20px',
                   padding: '28px',
                   marginBottom: '32px',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  border: `1px solid ${themeColors.cardBorder}`,
                 }}>
                   <h3 style={{
                     margin: '0 0 20px 0',
                     fontSize: '18px',
                     fontWeight: 700,
-                    color: '#c8d6e5',
+                    color: themeColors.text,
                     letterSpacing: '1px',
                     textTransform: 'uppercase',
                   }}>
@@ -3335,16 +3406,16 @@ function BellCurveApp() {
             {/* Interpretation Guide */}
             {tests.length > 0 && (
               <div style={{
-                background: 'rgba(255, 255, 255, 0.04)',
+                background: themeColors.cardBg,
                 borderRadius: '20px',
                 padding: '28px',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                border: `1px solid ${themeColors.cardBorder}`,
               }}>
                 <h3 style={{
                   margin: '0 0 20px 0',
                   fontSize: '18px',
                   fontWeight: 700,
-                  color: '#c8d6e5',
+                  color: themeColors.text,
                 }}>
                   📖 Score Interpretation Guide
                 </h3>
@@ -3364,7 +3435,7 @@ function BellCurveApp() {
                       key={item.range}
                       style={{
                         padding: '16px',
-                        background: 'rgba(255, 255, 255, 0.05)',
+                        background: 'var(--surface-2)',
                         borderRadius: '12px',
                       }}
                     >
