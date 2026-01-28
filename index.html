@@ -2816,7 +2816,178 @@ function BellCurveApp() {
               )}
             </div>
 
-            <div className="chart-container" style={{ marginBottom: '32px' }}>
+            {/* Main content area with side-by-side layout */}
+            <div style={{ display: 'flex', gap: '32px', alignItems: 'flex-start' }}>
+              {/* Left column - Test Selection and Score Cards */}
+              <div style={{ width: '320px', flexShrink: 0 }}>
+                {/* Test Selection Panel */}
+                {tests.length > 0 && (
+                  <div style={{
+                    background: themeColors.cardBg,
+                    borderRadius: '20px',
+                    padding: '20px',
+                    marginBottom: '20px',
+                    border: `1px solid ${themeColors.cardBorder}`,
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '16px',
+                    }}>
+                      <h3 style={{
+                        margin: 0,
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        color: themeColors.text,
+                        letterSpacing: '1px',
+                        textTransform: 'uppercase',
+                      }}>
+                        📊 Select Tests
+                      </h3>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="control-btn" onClick={showAllTests} style={{ fontSize: '11px', padding: '6px 10px' }}>
+                          Show All
+                        </button>
+                        <button className="control-btn" onClick={hideAllTests} style={{ fontSize: '11px', padding: '6px 10px' }}>
+                          Hide All
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                    }}>
+                      {tests.map((test) => {
+                        const isChecked = visibleTestIds.has(test.id);
+                        return (
+                          <div
+                            key={test.id}
+                            className={`checkbox-card ${isChecked ? 'checked' : ''}`}
+                            onClick={() => toggleTestVisibility(test.id)}
+                            style={{ color: test.color, padding: '10px 14px' }}
+                          >
+                            <div
+                              className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
+                              style={{
+                                borderColor: isChecked ? test.color : undefined,
+                                background: isChecked ? test.color : 'transparent',
+                                width: '20px',
+                                height: '20px',
+                              }}
+                            >
+                              {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color), fontSize: '12px' }}>✓</span>}
+                            </div>
+                            <div
+                              style={{
+                                width: '8px',
+                                height: '28px',
+                                borderRadius: '4px',
+                                backgroundColor: test.color,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <div style={{ flex: 1 }}>
+                              <div style={{
+                                fontWeight: 700,
+                                fontSize: '13px',
+                                color: themeColors.text,
+                                marginBottom: '2px',
+                              }}>
+                                {test.name}
+                              </div>
+                              <div style={{
+                                fontSize: '11px',
+                                color: themeColors.textMuted,
+                              }}>
+                                Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))})
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Score Summary Cards */}
+                {getVisibleTests().length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}>
+                    {getVisibleTests().map((test) => (
+                      <div
+                        key={test.id}
+                        style={{
+                          background: themeColors.cardBg,
+                          borderRadius: '14px',
+                          padding: '16px',
+                          borderLeft: `4px solid ${test.color}`,
+                          backdropFilter: 'blur(10px)',
+                          border: `1px solid ${themeColors.cardBorder}`,
+                          borderLeftWidth: '4px',
+                          borderLeftColor: test.color,
+                        }}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          marginBottom: '8px',
+                        }}>
+                          <div
+                            style={{
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '50%',
+                              backgroundColor: test.color,
+                            }}
+                          />
+                          <h4 style={{
+                            margin: 0,
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: themeColors.text,
+                          }}>
+                            {test.name}
+                          </h4>
+                        </div>
+                        <div style={{
+                          fontSize: '28px',
+                          fontWeight: 800,
+                          color: test.color,
+                          marginBottom: '2px',
+                        }}>
+                          {test.score}
+                        </div>
+                        <div style={{
+                          fontSize: '12px',
+                          color: themeColors.textSecondary,
+                          fontWeight: 700,
+                          marginBottom: '4px',
+                        }}>
+                          {formatPercentile(getPercentileRank(test.score))} Percentile
+                        </div>
+                        <div style={{
+                          fontSize: '11px',
+                          color: themeColors.textMuted,
+                          fontWeight: 600,
+                        }}>
+                          {getScoreDescription(test.score)} Range
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Right column - Chart */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="chart-container" style={{ marginBottom: '32px' }}>
               {/* Hover instruction and label toggle */}
               <div style={{
                 display: 'flex',
@@ -3119,167 +3290,9 @@ function BellCurveApp() {
                   );
                 })}
               </svg>
+                </div>
+              </div>
             </div>
-
-            {/* Test Selection Panel */}
-            {tests.length > 0 && (
-              <div style={{
-                background: themeColors.cardBg,
-                borderRadius: '20px',
-                padding: '28px',
-                marginBottom: '32px',
-                border: `1px solid ${themeColors.cardBorder}`,
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '20px',
-                }}>
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '18px',
-                    fontWeight: 700,
-                    color: themeColors.text,
-                    letterSpacing: '1px',
-                    textTransform: 'uppercase',
-                  }}>
-                    📊 Select Tests to Display
-                  </h3>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button className="control-btn" onClick={showAllTests}>
-                      Show All
-                    </button>
-                    <button className="control-btn" onClick={hideAllTests}>
-                      Hide All
-                    </button>
-                  </div>
-                </div>
-                
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                  gap: '12px',
-                }}>
-                  {tests.map((test) => {
-                    const isChecked = visibleTestIds.has(test.id);
-                    return (
-                      <div
-                        key={test.id}
-                        className={`checkbox-card ${isChecked ? 'checked' : ''}`}
-                        onClick={() => toggleTestVisibility(test.id)}
-                        style={{ color: test.color }}
-                      >
-                        <div 
-                          className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
-                          style={{ borderColor: isChecked ? test.color : undefined, background: isChecked ? test.color : 'transparent' }}
-                        >
-                          {isChecked && <span className="checkmark" style={{ color: getContrastTextColor(test.color) }}>✓</span>}
-                        </div>
-                        <div
-                          style={{
-                            width: '12px',
-                            height: '36px',
-                            borderRadius: '6px',
-                            backgroundColor: test.color,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{
-                            fontWeight: 700,
-                            fontSize: '15px',
-                            color: themeColors.text,
-                            marginBottom: '2px',
-                          }}>
-                            {test.name}
-                          </div>
-                          <div style={{
-                            fontSize: '13px',
-                            color: themeColors.textMuted,
-                          }}>
-                            Score: <span style={{ color: test.color, fontWeight: 700 }}>{test.score}</span> ({formatPercentile(getPercentileRank(test.score))}) • {getScoreDescription(test.score)}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Score Summary Cards */}
-            {getVisibleTests().length > 0 && (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                gap: '16px',
-                marginBottom: '32px',
-              }}>
-                {getVisibleTests().map((test) => (
-                  <div
-                    key={test.id}
-                    style={{
-                      background: themeColors.cardBg,
-                      borderRadius: '16px',
-                      padding: '20px',
-                      borderLeft: `5px solid ${test.color}`,
-                      backdropFilter: 'blur(10px)',
-                      border: `1px solid ${themeColors.cardBorder}`,
-                      borderLeftWidth: '5px',
-                      borderLeftColor: test.color,
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                      marginBottom: '10px',
-                    }}>
-                      <div
-                        style={{
-                          width: '16px',
-                          height: '16px',
-                          borderRadius: '50%',
-                          backgroundColor: test.color,
-                        }}
-                      />
-                      <h4 style={{
-                        margin: 0,
-                        fontSize: '15px',
-                        fontWeight: 700,
-                        color: themeColors.text,
-                      }}>
-                        {test.name}
-                      </h4>
-                    </div>
-                    <div style={{
-                      fontSize: '32px',
-                      fontWeight: 800,
-                      color: test.color,
-                      marginBottom: '4px',
-                    }}>
-                      {test.score}
-                    </div>
-                    <div style={{
-                      fontSize: '14px',
-                      color: themeColors.textSecondary,
-                      fontWeight: 700,
-                      marginBottom: '6px',
-                    }}>
-                      {formatPercentile(getPercentileRank(test.score))} Percentile
-                    </div>
-                    <div style={{
-                      fontSize: '13px',
-                      color: themeColors.textMuted,
-                      fontWeight: 600,
-                    }}>
-                      {getScoreDescription(test.score)} Range
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
 
             {tests.length === 0 && (
               <div style={{
