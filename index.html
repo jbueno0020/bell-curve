@@ -326,7 +326,12 @@ function BellCurveApp() {
   const [assessmentDate, setAssessmentDate] = React.useState('');
   const [visibleTestIds, setVisibleTestIds] = React.useState(new Set());
   const [hoveredTestId, setHoveredTestId] = React.useState(null);
+  const [activeTestId, setActiveTestId] = React.useState(null);
+  const [openClusterId, setOpenClusterId] = React.useState(null); // For cluster marker popover
   const [summaryOverride, setSummaryOverride] = React.useState('');
+
+  // Refs for sidebar rows (for auto-scroll)
+  const sidebarRowRefs = React.useRef({});
   const [isPrintPreview, setIsPrintPreview] = React.useState(false);
   const [showHelpPanel, setShowHelpPanel] = React.useState(false);
   const importInputRef = React.useRef(null);
@@ -377,6 +382,7 @@ function BellCurveApp() {
     inputBorder: 'var(--border)',
     chartBg: 'var(--surface-2)',
     panelBg: 'var(--surface-2)',
+    primary: 'var(--primary)',
   }), [theme]);
 
   // Load branding and profiles from localStorage on mount
@@ -992,6 +998,69 @@ function BellCurveApp() {
     
     return positions;
   };
+
+  // Group tests by exact score for cluster markers
+  const groupTestsByScore = (visibleTests) => {
+    const groups = new Map();
+    visibleTests.forEach(test => {
+      const score = test.score;
+      if (!groups.has(score)) {
+        groups.set(score, []);
+      }
+      groups.get(score).push(test);
+    });
+    return groups;
+  };
+
+  // Get the focused test (activeTestId takes precedence over hoveredTestId)
+  const getFocusedTest = () => {
+    const visibleTests = getVisibleTests();
+    if (activeTestId) {
+      const test = visibleTests.find(t => t.id === activeTestId);
+      if (test) return test;
+    }
+    if (hoveredTestId) {
+      const test = visibleTests.find(t => t.id === hoveredTestId);
+      if (test) return test;
+    }
+    // Default to first visible test
+    return visibleTests.length > 0 ? visibleTests[0] : null;
+  };
+
+  const focusedTest = getFocusedTest();
+  const focusedTestId = focusedTest?.id || null;
+
+  // Auto-scroll sidebar when focused test changes from chart interaction
+  React.useEffect(() => {
+    const testIdToScroll = activeTestId || hoveredTestId;
+    if (testIdToScroll && sidebarRowRefs.current[testIdToScroll]) {
+      sidebarRowRefs.current[testIdToScroll].scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [activeTestId, hoveredTestId]);
+
+  // Close cluster popover on outside click or Escape
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setOpenClusterId(null);
+      }
+    };
+    const handleClickOutside = (e) => {
+      // Check if click is outside the cluster popover
+      if (openClusterId && !e.target.closest('.cluster-popover') && !e.target.closest('.cluster-marker')) {
+        setOpenClusterId(null);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [openClusterId]);
 
   const computedSummary = summaryOverride.trim() ? summaryOverride : generateSummary();
 
@@ -2859,18 +2928,51 @@ function BellCurveApp() {
                       display: 'flex',
                       flexDirection: 'column',
                       gap: '8px',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
                     }}>
                       {tests.map((test) => {
                         const isChecked = visibleTestIds.has(test.id);
+                        const isFocused = focusedTestId === test.id;
+                        const isHovered = hoveredTestId === test.id;
                         return (
                           <div
                             key={test.id}
+                            ref={(el) => { sidebarRowRefs.current[test.id] = el; }}
                             className={`checkbox-card ${isChecked ? 'checked' : ''}`}
-                            onClick={() => toggleTestVisibility(test.id)}
-                            style={{ color: test.color, padding: '10px 14px' }}
+                            onClick={(e) => {
+                              // If clicking the checkbox area, toggle visibility
+                              if (e.target.closest('.custom-checkbox')) {
+                                toggleTestVisibility(test.id);
+                              } else {
+                                // Otherwise, set as active test
+                                setActiveTestId(test.id);
+                                // Ensure test is visible when clicked
+                                if (!visibleTestIds.has(test.id)) {
+                                  toggleTestVisibility(test.id);
+                                }
+                              }
+                            }}
+                            onMouseEnter={() => setHoveredTestId(test.id)}
+                            onMouseLeave={() => setHoveredTestId(null)}
+                            style={{
+                              color: test.color,
+                              padding: '10px 14px',
+                              background: isFocused
+                                ? `${test.color}25`
+                                : isHovered
+                                  ? `${test.color}15`
+                                  : undefined,
+                              borderLeft: isFocused ? `3px solid ${test.color}` : '3px solid transparent',
+                              transition: 'all 0.15s ease',
+                            }}
                           >
                             <div
                               className={`custom-checkbox ${isChecked ? 'checked' : ''}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleTestVisibility(test.id);
+                              }}
                               style={{
                                 borderColor: isChecked ? test.color : undefined,
                                 background: isChecked ? test.color : 'transparent',
@@ -2891,9 +2993,9 @@ function BellCurveApp() {
                             />
                             <div style={{ flex: 1 }}>
                               <div style={{
-                                fontWeight: 700,
+                                fontWeight: isFocused ? 800 : 700,
                                 fontSize: '13px',
-                                color: themeColors.text,
+                                color: isFocused ? test.color : themeColors.text,
                                 marginBottom: '2px',
                               }}>
                                 {test.name}
@@ -2912,82 +3014,108 @@ function BellCurveApp() {
                   </div>
                 )}
 
-                {/* Score Summary Cards */}
-                {getVisibleTests().length > 0 && (
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '12px',
+                {/* Test Details Panel - Single panel that shows focused test */}
+                <div style={{
+                  background: themeColors.cardBg,
+                  borderRadius: '14px',
+                  padding: '16px',
+                  border: `1px solid ${themeColors.cardBorder}`,
+                  borderLeft: focusedTest ? `4px solid ${focusedTest.color}` : `4px solid ${themeColors.cardBorder}`,
+                  minHeight: '140px',
+                }}>
+                  <h4 style={{
+                    margin: '0 0 12px 0',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: themeColors.textMuted,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
                   }}>
-                    {getVisibleTests().map((test) => (
-                      <div
-                        key={test.id}
-                        style={{
-                          background: themeColors.cardBg,
-                          borderRadius: '14px',
-                          padding: '16px',
-                          borderLeft: `4px solid ${test.color}`,
-                          backdropFilter: 'blur(10px)',
-                          border: `1px solid ${themeColors.cardBorder}`,
-                          borderLeftWidth: '4px',
-                          borderLeftColor: test.color,
-                        }}
-                      >
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          marginBottom: '8px',
-                        }}>
-                          <div
-                            style={{
-                              width: '12px',
-                              height: '12px',
-                              borderRadius: '50%',
-                              backgroundColor: test.color,
-                            }}
-                          />
-                          <h4 style={{
-                            margin: 0,
-                            fontSize: '13px',
-                            fontWeight: 700,
-                            color: themeColors.text,
-                          }}>
-                            {test.name}
-                          </h4>
-                        </div>
-                        <div style={{
-                          fontSize: '28px',
-                          fontWeight: 800,
-                          color: test.color,
-                          marginBottom: '2px',
-                        }}>
-                          {test.score}
-                        </div>
-                        <div style={{
-                          fontSize: '12px',
-                          color: themeColors.textSecondary,
+                    📋 Test Details
+                  </h4>
+                  {focusedTest ? (
+                    <>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        marginBottom: '12px',
+                      }}>
+                        <div
+                          style={{
+                            width: '14px',
+                            height: '14px',
+                            borderRadius: '50%',
+                            backgroundColor: focusedTest.color,
+                          }}
+                        />
+                        <h4 style={{
+                          margin: 0,
+                          fontSize: '15px',
                           fontWeight: 700,
-                          marginBottom: '4px',
+                          color: focusedTest.color,
                         }}>
-                          {formatPercentile(getPercentileRank(test.score))} Percentile
-                        </div>
-                        <div style={{
-                          fontSize: '11px',
-                          color: themeColors.textMuted,
-                          fontWeight: 600,
-                        }}>
-                          {getScoreDescription(test.score)} Range
-                        </div>
+                          {focusedTest.name}
+                        </h4>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <div style={{
+                        fontSize: '36px',
+                        fontWeight: 800,
+                        color: focusedTest.color,
+                        marginBottom: '4px',
+                        lineHeight: 1,
+                      }}>
+                        {focusedTest.score}
+                      </div>
+                      <div style={{
+                        fontSize: '14px',
+                        color: themeColors.textSecondary,
+                        fontWeight: 700,
+                        marginBottom: '6px',
+                      }}>
+                        {formatPercentile(getPercentileRank(focusedTest.score))} Percentile
+                      </div>
+                      <div style={{
+                        fontSize: '13px',
+                        color: themeColors.textMuted,
+                        fontWeight: 600,
+                        marginBottom: '8px',
+                      }}>
+                        {getScoreDescription(focusedTest.score)} Range
+                      </div>
+                      <div style={{
+                        fontSize: '11px',
+                        color: themeColors.textMuted,
+                        fontStyle: 'italic',
+                        borderTop: `1px solid ${themeColors.cardBorder}`,
+                        paddingTop: '8px',
+                        marginTop: '4px',
+                      }}>
+                        {activeTestId === focusedTest.id ? '📌 Pinned selection' : '👆 Click to pin selection'}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '20px',
+                      color: themeColors.textMuted,
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: '24px', marginBottom: '8px' }}>📊</div>
+                      <div style={{ fontSize: '13px' }}>
+                        Select a test from the list or hover over a marker to see details
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Right column - Chart */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="chart-container" style={{ marginBottom: '32px' }}>
+                <div className="chart-container" style={{ marginBottom: '32px', position: 'relative' }}>
               {/* Hover instruction and label toggle */}
               <div style={{
                 display: 'flex',
@@ -3109,187 +3237,328 @@ function BellCurveApp() {
                   ← Average Range (85-115) →
                 </text>
 
-                {/* Score markers with stacking and hover */}
-                {getStackedPositions(getVisibleTests()).map(({ test, x, y, baseY, isStacked }) => {
-                  const isHovered = hoveredTestId === test.id;
-                  const isHidden = hoveredTestId !== null && !isHovered;
-                  const textColor = getContrastTextColor(test.color);
-                  
-                  return (
-                    <g 
-                      key={test.id} 
-                      className="score-marker"
-                      onMouseEnter={() => setHoveredTestId(test.id)}
-                      onMouseLeave={() => setHoveredTestId(null)}
-                      style={{ 
-                        cursor: 'pointer',
-                        opacity: isHidden ? 0.15 : 1,
-                        transition: 'opacity 0.2s ease',
-                      }}
-                    >
-                      {/* Vertical line to base of curve */}
-                      <line
-                        x1={x}
-                        y1={baseY}
-                        x2={x}
-                        y2={chartBottomY}
-                        stroke={test.color}
-                        strokeWidth="2"
-                        strokeDasharray="6,4"
-                        opacity={isHidden ? 0.3 : 0.7}
-                      />
-                      {/* Connector line if stacked */}
-                      {y < baseY && (
-                        <line
-                          x1={x}
-                          y1={y + 18}
-                          x2={x}
-                          y2={baseY}
-                          stroke={test.color}
-                          strokeWidth="2"
-                          opacity={isHidden ? 0.2 : 0.5}
-                        />
-                      )}
-                      {/* Marker dot */}
-                      <circle
-                        cx={x}
-                        cy={y}
-                        r={isHovered ? 22 : 18}
-                        fill={test.color}
-                        stroke="white"
-                        strokeWidth={isHovered ? 4 : 3}
-                        filter={isHovered ? "url(#glow)" : "none"}
-                        style={{ transition: 'all 0.2s ease' }}
-                      />
-                      {/* Score on marker */}
-                      <text
-                        x={x}
-                        y={y + 5}
-                        textAnchor="middle"
-                        fill={textColor}
-                        fontSize={isHovered ? "14" : "12"}
-                        fontWeight="800"
-                        fontFamily="Nunito, sans-serif"
-                        style={{ transition: 'all 0.2s ease' }}
-                      >
-                        {test.score}
-                      </text>
-                      
-                      {/* Tooltip on hover */}
-                      {isHovered && (
-                        <g className="tooltip">
-                          {/* Tooltip background - dark background for better contrast */}
-                          <rect
-                            x={x - Math.max(test.name.length * 4.5 + 16, 80)}
-                            y={y - 80}
-                            width={Math.max(test.name.length * 9 + 32, 160)}
-                            height="54"
-                            rx="10"
-                            fill="#1a1a2e"
+                {/* Score markers - grouped by exact score */}
+                {(() => {
+                  const scoreGroups = groupTestsByScore(getVisibleTests());
+                  const markers = [];
+
+                  scoreGroups.forEach((testsAtScore, score) => {
+                    const x = getScoreX(score);
+                    const baseY = getScoreY(score);
+                    const isCluster = testsAtScore.length > 1;
+                    const clusterId = `cluster-${score}`;
+                    const isClusterOpen = openClusterId === clusterId;
+
+                    // Check if any test in this cluster is hovered or active
+                    const hasHoveredTest = testsAtScore.some(t => t.id === hoveredTestId);
+                    const hasActiveTest = testsAtScore.some(t => t.id === activeTestId);
+                    const hasFocusedTest = testsAtScore.some(t => t.id === focusedTestId);
+
+                    // For single markers
+                    if (!isCluster) {
+                      const test = testsAtScore[0];
+                      const isHovered = hoveredTestId === test.id;
+                      const isActive = activeTestId === test.id;
+                      const isFocused = focusedTestId === test.id;
+                      const isHidden = (hoveredTestId !== null || activeTestId !== null) && !isHovered && !isActive;
+                      const textColor = getContrastTextColor(test.color);
+
+                      markers.push(
+                        <g
+                          key={test.id}
+                          className="score-marker"
+                          onMouseEnter={() => setHoveredTestId(test.id)}
+                          onMouseLeave={() => setHoveredTestId(null)}
+                          onClick={() => setActiveTestId(test.id)}
+                          style={{
+                            cursor: 'pointer',
+                            opacity: isHidden ? 0.2 : 1,
+                            transition: 'opacity 0.2s ease',
+                          }}
+                        >
+                          {/* Vertical line to curve */}
+                          <line
+                            x1={x}
+                            y1={baseY}
+                            x2={x}
+                            y2={chartBottomY}
                             stroke={test.color}
                             strokeWidth="2"
-                            filter="url(#tooltipShadow)"
+                            strokeDasharray="6,4"
+                            opacity={isHidden ? 0.3 : 0.7}
                           />
-                          {/* Tooltip arrow */}
-                          <polygon
-                            points={`${x - 10},${y - 26} ${x + 10},${y - 26} ${x},${y - 18}`}
-                            fill="#1a1a2e"
-                            stroke={test.color}
-                            strokeWidth="2"
-                          />
-                          {/* Cover the arrow's top stroke */}
-                          <rect
-                            x={x - 9}
-                            y={y - 28}
-                            width="18"
-                            height="4"
-                            fill="#1a1a2e"
-                          />
-                          {/* Tooltip text - test name */}
-                          <text
-                            x={x}
-                            y={y - 56}
-                            textAnchor="middle"
-                            fill="#ffffff"
-                            fontSize="14"
-                            fontWeight="700"
-                            fontFamily="Nunito, sans-serif"
-                          >
-                            {test.name}
-                          </text>
-                          {/* Tooltip text - percentile */}
-                          <text
-                            x={x}
-                            y={y - 38}
-                            textAnchor="middle"
+                          {/* Marker dot */}
+                          <circle
+                            cx={x}
+                            cy={baseY}
+                            r={isFocused ? 22 : 18}
                             fill={test.color}
-                            fontSize="12"
-                            fontWeight="600"
+                            stroke="white"
+                            strokeWidth={isFocused ? 4 : 3}
+                            filter={isFocused ? "url(#glow)" : "none"}
+                            style={{ transition: 'all 0.2s ease' }}
+                          />
+                          {/* Score on marker */}
+                          <text
+                            x={x}
+                            y={baseY + 5}
+                            textAnchor="middle"
+                            fill={textColor}
+                            fontSize={isFocused ? "14" : "12"}
+                            fontWeight="800"
                             fontFamily="Nunito, sans-serif"
+                            style={{ transition: 'all 0.2s ease', pointerEvents: 'none' }}
                           >
-                            {formatPercentile(getPercentileRank(test.score))} Percentile
+                            {test.score}
+                          </text>
+
+                          {/* Tooltip on hover for single marker */}
+                          {isHovered && (
+                            <g className="tooltip">
+                              <rect
+                                x={x - Math.max(test.name.length * 4.5 + 16, 80)}
+                                y={baseY - 80}
+                                width={Math.max(test.name.length * 9 + 32, 160)}
+                                height="54"
+                                rx="10"
+                                fill="#1a1a2e"
+                                stroke={test.color}
+                                strokeWidth="2"
+                                filter="url(#tooltipShadow)"
+                              />
+                              <polygon
+                                points={`${x - 10},${baseY - 26} ${x + 10},${baseY - 26} ${x},${baseY - 18}`}
+                                fill="#1a1a2e"
+                                stroke={test.color}
+                                strokeWidth="2"
+                              />
+                              <rect x={x - 9} y={baseY - 28} width="18" height="4" fill="#1a1a2e" />
+                              <text
+                                x={x}
+                                y={baseY - 56}
+                                textAnchor="middle"
+                                fill="#ffffff"
+                                fontSize="14"
+                                fontWeight="700"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {test.name}
+                              </text>
+                              <text
+                                x={x}
+                                y={baseY - 38}
+                                textAnchor="middle"
+                                fill={test.color}
+                                fontSize="12"
+                                fontWeight="600"
+                                fontFamily="Nunito, sans-serif"
+                              >
+                                {formatPercentile(getPercentileRank(test.score))} Percentile
+                              </text>
+                            </g>
+                          )}
+                        </g>
+                      );
+                    } else {
+                      // Cluster marker for multiple tests at same score
+                      const primaryColor = testsAtScore[0].color;
+                      const isHidden = (hoveredTestId !== null || activeTestId !== null) && !hasHoveredTest && !hasActiveTest;
+
+                      markers.push(
+                        <g
+                          key={clusterId}
+                          className="cluster-marker"
+                          onMouseEnter={() => !isClusterOpen && setOpenClusterId(clusterId)}
+                          onClick={() => setOpenClusterId(isClusterOpen ? null : clusterId)}
+                          style={{
+                            cursor: 'pointer',
+                            opacity: isHidden ? 0.2 : 1,
+                            transition: 'opacity 0.2s ease',
+                          }}
+                        >
+                          {/* Vertical line to curve */}
+                          <line
+                            x1={x}
+                            y1={baseY}
+                            x2={x}
+                            y2={chartBottomY}
+                            stroke={primaryColor}
+                            strokeWidth="2"
+                            strokeDasharray="6,4"
+                            opacity={isHidden ? 0.3 : 0.7}
+                          />
+                          {/* Cluster marker - gradient ring */}
+                          <circle
+                            cx={x}
+                            cy={baseY}
+                            r={hasFocusedTest || isClusterOpen ? 24 : 20}
+                            fill="url(#clusterGradient)"
+                            stroke="white"
+                            strokeWidth={hasFocusedTest || isClusterOpen ? 4 : 3}
+                            filter={hasFocusedTest || isClusterOpen ? "url(#glow)" : "none"}
+                            style={{ transition: 'all 0.2s ease' }}
+                          />
+                          {/* Score on marker */}
+                          <text
+                            x={x}
+                            y={baseY + 4}
+                            textAnchor="middle"
+                            fill="white"
+                            fontSize="12"
+                            fontWeight="800"
+                            fontFamily="Nunito, sans-serif"
+                            style={{ pointerEvents: 'none' }}
+                          >
+                            {score}
+                          </text>
+                          {/* Badge showing count */}
+                          <circle
+                            cx={x + 16}
+                            cy={baseY - 14}
+                            r="10"
+                            fill="#667eea"
+                            stroke="white"
+                            strokeWidth="2"
+                          />
+                          <text
+                            x={x + 16}
+                            y={baseY - 10}
+                            textAnchor="middle"
+                            fill="white"
+                            fontSize="10"
+                            fontWeight="800"
+                            fontFamily="Nunito, sans-serif"
+                            style={{ pointerEvents: 'none' }}
+                          >
+                            {testsAtScore.length}
                           </text>
                         </g>
-                      )}
-                    </g>
-                  );
-                })}
+                      );
+                    }
+                  });
 
-                {/* Test name labels - always shown in print, toggle in screen view */}
-                {(showLabelsOnCurve || typeof window !== 'undefined') && getStackedPositions(getVisibleTests()).map(({ test, x, y }, index, array) => {
-                  // Calculate label position - above the marker, accounting for stacking
-                  const labelY = y - 35;
-                  const labelX = x;
+                  return markers;
+                })()}
 
-                  // Determine text anchor based on position to avoid edge overflow
-                  let textAnchor = 'middle';
-                  let adjustedX = labelX;
-
-                  if (labelX < 100) {
-                    textAnchor = 'start';
-                    adjustedX = labelX + 25;
-                  } else if (labelX > 700) {
-                    textAnchor = 'end';
-                    adjustedX = labelX - 25;
-                  }
-
-                  // Calculate rect width based on text length
-                  const rectWidth = test.name.length * 7 + 12;
-                  const rectX = textAnchor === 'middle'
-                    ? adjustedX - rectWidth / 2
-                    : textAnchor === 'start'
-                      ? adjustedX - 6
-                      : adjustedX - rectWidth + 6;
-
-                  return (
-                    <g key={`label-${test.id}`} className={showLabelsOnCurve ? '' : 'print-only'} style={{ display: showLabelsOnCurve ? 'block' : 'none' }}>
-                      {/* Label background for better readability */}
-                      <rect
-                        x={rectX}
-                        y={labelY - 12}
-                        width={rectWidth}
-                        height="18"
-                        rx="4"
-                        fill="white"
-                        stroke={test.color}
-                        strokeWidth="2"
-                      />
-                      {/* Test name label */}
-                      <text
-                        x={adjustedX}
-                        y={labelY}
-                        textAnchor={textAnchor}
-                        fill={test.color}
-                        fontSize="10"
-                        fontWeight="700"
-                        fontFamily="Nunito, sans-serif"
-                      >
-                        {test.name}
-                      </text>
-                    </g>
-                  );
-                })}
+                {/* Gradient for cluster markers */}
+                <defs>
+                  <linearGradient id="clusterGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#667eea" />
+                    <stop offset="100%" stopColor="#764ba2" />
+                  </linearGradient>
+                </defs>
               </svg>
+
+              {/* Cluster Legend Popover - rendered outside SVG */}
+              {openClusterId && (() => {
+                const score = parseInt(openClusterId.replace('cluster-', ''));
+                const testsAtScore = getVisibleTests().filter(t => t.score === score);
+                if (testsAtScore.length === 0) return null;
+
+                // Calculate position relative to chart
+                const xPercent = ((score - 40) / 120) * 100;
+                const popoverLeft = xPercent < 50 ? `${xPercent + 5}%` : `${xPercent - 25}%`;
+
+                return (
+                  <div
+                    className="cluster-popover"
+                    style={{
+                      position: 'absolute',
+                      left: popoverLeft,
+                      top: '80px',
+                      background: themeColors.cardBg,
+                      border: `2px solid ${themeColors.primary}`,
+                      borderRadius: '12px',
+                      padding: '12px',
+                      minWidth: '200px',
+                      maxWidth: '280px',
+                      boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+                      zIndex: 100,
+                    }}
+                  >
+                    <div style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      color: themeColors.textMuted,
+                      marginBottom: '8px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                    }}>
+                      {testsAtScore.length} tests at score {score}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {testsAtScore.map(test => {
+                        const isItemHovered = hoveredTestId === test.id;
+                        const isItemActive = activeTestId === test.id;
+                        return (
+                          <div
+                            key={test.id}
+                            onMouseEnter={() => setHoveredTestId(test.id)}
+                            onMouseLeave={() => setHoveredTestId(null)}
+                            onClick={() => {
+                              setActiveTestId(test.id);
+                              setOpenClusterId(null);
+                            }}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              background: isItemActive
+                                ? `${test.color}30`
+                                : isItemHovered
+                                  ? `${test.color}20`
+                                  : 'transparent',
+                              borderLeft: isItemActive ? `3px solid ${test.color}` : '3px solid transparent',
+                              transition: 'all 0.15s ease',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: '10px',
+                                height: '10px',
+                                borderRadius: '50%',
+                                backgroundColor: test.color,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: isItemActive ? test.color : themeColors.text,
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}>
+                                {test.name}
+                              </div>
+                              <div style={{
+                                fontSize: '11px',
+                                color: themeColors.textMuted,
+                              }}>
+                                {formatPercentile(getPercentileRank(test.score))} Percentile
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{
+                      fontSize: '10px',
+                      color: themeColors.textMuted,
+                      marginTop: '8px',
+                      paddingTop: '8px',
+                      borderTop: `1px solid ${themeColors.cardBorder}`,
+                      textAlign: 'center',
+                    }}>
+                      Click a test to select • Press Esc to close
+                    </div>
+                  </div>
+                );
+              })()}
                 </div>
               </div>
             </div>
