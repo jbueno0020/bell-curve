@@ -350,9 +350,6 @@ function BellCurveApp() {
   const [currentProfileId, setCurrentProfileId] = React.useState(null);
   const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
 
-  // Bell curve label display options
-  const [showLabelsOnCurve, setShowLabelsOnCurve] = React.useState(false);
-
   // Autocomplete state
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
   const [showAutocomplete, setShowAutocomplete] = React.useState(false);
@@ -3116,29 +3113,15 @@ function BellCurveApp() {
               {/* Right column - Chart */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="chart-container" style={{ marginBottom: '32px', position: 'relative' }}>
-              {/* Hover instruction and label toggle */}
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: '16px',
+              {/* Hover instruction */}
+              <p style={{
+                margin: '0 0 16px 0',
+                fontSize: '13px',
+                color: themeColors.textMuted,
               }}>
-                <p style={{
-                  margin: 0,
-                  fontSize: '13px',
-                  color: themeColors.textMuted,
-                }}>
-                  💡 Hover over any score marker to see the test name
-                </p>
-                <button
-                  className="control-btn no-print"
-                  onClick={() => setShowLabelsOnCurve(!showLabelsOnCurve)}
-                  style={{ fontSize: '12px' }}
-                >
-                  {showLabelsOnCurve ? '🏷️ Hide Labels' : '🏷️ Show Labels'}
-                </button>
-              </div>
-              
+                💡 Hover over any score marker to see the test name
+              </p>
+
               <svg viewBox="0 -100 800 540" style={{ width: '100%', height: 'auto' }}>
                 {/* Grid lines */}
                 {[55, 70, 85, 100, 115, 130, 145].map((score) => (
