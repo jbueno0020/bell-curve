@@ -332,7 +332,7 @@ function BellCurveApp() {
 
   // Refs for sidebar rows (for auto-scroll)
   const sidebarRowRefs = React.useRef({});
-  const [isPrintPreview, setIsPrintPreview] = React.useState(false);
+  const [printMode, setPrintMode] = React.useState(false);
   const [showHelpPanel, setShowHelpPanel] = React.useState(false);
   const importInputRef = React.useRef(null);
 
@@ -543,10 +543,17 @@ function BellCurveApp() {
   };
 
   const handleDownloadPdf = () => {
-    setIsPrintPreview(true);
+    setPrintMode(true);
     setTimeout(() => {
       window.print();
-    }, 100);
+    }, 200);
+  };
+
+  // Helper: get dot style based on number of selected tests
+  const getDotStyle = (count) => {
+    if (count <= 12) return { dotRadius: 6, fontSize: '9', clusterMode: false };
+    if (count <= 24) return { dotRadius: 4, fontSize: '7', clusterMode: false };
+    return { dotRadius: 5, fontSize: '8', clusterMode: true };
   };
 
   const handleExportProfiles = () => {
@@ -1063,14 +1070,14 @@ function BellCurveApp() {
 
   return (
     <div
-      className={isPrintPreview ? 'print-preview' : ''}
+      className={printMode ? 'print-mode' : ''}
       style={{
         minHeight: '100vh',
-        background: isPrintPreview
+        background: printMode
           ? '#ffffff'
           : themeColors.background,
         fontFamily: "'Nunito', 'Segoe UI', sans-serif",
-        color: isPrintPreview ? '#1a1a2e' : themeColors.text,
+        color: printMode ? '#1a1a2e' : themeColors.text,
         padding: '0',
       }}
     >
@@ -1443,29 +1450,124 @@ function BellCurveApp() {
           transition: opacity 0.2s ease;
         }
 
-        .print-preview {
-          background: #ffffff !important;
-          color: #1a1a2e !important;
+        /* Print mode toolbar */
+        .print-toolbar {
+          position: sticky;
+          top: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 32px;
+          background: #1a1a2e;
+          color: white;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+        }
+        .print-toolbar button {
+          padding: 8px 20px;
+          border-radius: 8px;
+          border: none;
+          cursor: pointer;
+          font-family: 'Nunito', sans-serif;
+          font-weight: 700;
+          font-size: 14px;
+          transition: all 0.15s ease;
+        }
+        .print-toolbar .btn-back {
+          background: rgba(255,255,255,0.15);
+          color: white;
+        }
+        .print-toolbar .btn-back:hover {
+          background: rgba(255,255,255,0.25);
+        }
+        .print-toolbar .btn-print {
+          background: #667eea;
+          color: white;
+        }
+        .print-toolbar .btn-print:hover {
+          background: #5569d9;
         }
 
-        .print-preview .no-print {
-          display: none !important;
+        /* Report print view */
+        .report-view {
+          max-width: 900px;
+          margin: 0 auto;
+          padding: 40px 32px;
+          background: white;
+          color: #1a1a2e;
+        }
+        .report-header {
+          text-align: center;
+          border-bottom: 3px solid #667eea;
+          padding-bottom: 24px;
+          margin-bottom: 32px;
+        }
+        .report-header h1 {
+          margin: 0 0 8px 0;
+          font-size: 28px;
+          font-weight: 700;
+          color: #1a1a2e;
+        }
+        .report-header .subtitle {
+          font-size: 15px;
+          color: #5b657a;
+          margin: 0;
+        }
+        .report-summary-grid {
+          display: grid;
+          grid-template-columns: 1fr 300px;
+          gap: 32px;
+          margin-bottom: 32px;
+        }
+        .report-chart-box {
+          border: 1px solid #d2d8e5;
+          border-radius: 12px;
+          padding: 20px;
+          background: #fafbfd;
+        }
+        .report-legend-box {
+          border: 1px solid #d2d8e5;
+          border-radius: 12px;
+          padding: 16px;
+          background: #fafbfd;
+        }
+        .report-legend-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 0;
+          border-bottom: 1px solid #eef0f5;
+          font-size: 13px;
+        }
+        .report-legend-row:last-child {
+          border-bottom: none;
         }
 
-        .print-preview .print-only {
-          display: block !important;
+        /* Results table */
+        .results-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+          margin-top: 8px;
         }
-
-        .print-preview .chart-container {
-          box-shadow: none !important;
-          border: 1px solid #ddd !important;
-          background: #ffffff !important;
+        .results-table thead th {
+          background: #f2f5fb;
+          border: 1px solid #d2d8e5;
+          padding: 10px 14px;
+          text-align: left;
+          font-weight: 700;
+          color: #1b1f2e;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
-
-        .print-preview .presentation-header {
-          border-bottom: 2px solid #667eea;
-          padding-bottom: 20px;
-          margin-bottom: 30px;
+        .results-table tbody td {
+          border: 1px solid #d2d8e5;
+          padding: 10px 14px;
+          color: #1b1f2e;
+        }
+        .results-table tbody tr:nth-child(even) {
+          background: #f9fafb;
         }
 
         /* Print Styles for PDF Export */
@@ -1473,85 +1575,63 @@ function BellCurveApp() {
           body {
             background: white !important;
           }
-
-          .no-print {
+          .no-print, .print-toolbar {
             display: none !important;
           }
-
           .print-only {
             display: block !important;
           }
-
+          .report-view {
+            padding: 0;
+            max-width: 100%;
+          }
+          .report-chart-box, .report-legend-box {
+            border: 1px solid #bbb !important;
+            background: white !important;
+            box-shadow: none !important;
+          }
+          .results-table thead {
+            display: table-header-group;
+          }
+          .results-table tbody tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
           .chart-container {
             box-shadow: none !important;
-            border: 2px solid #333 !important;
+            border: 1px solid #bbb !important;
+            background: white !important;
             break-inside: avoid;
             page-break-inside: avoid;
-            background: white !important;
           }
-
           .presentation-header {
             border-bottom: 2px solid #667eea;
             padding-bottom: 20px;
             margin-bottom: 30px;
             color: #1a1a2e !important;
           }
-
           .presentation-header h2 {
             color: #1a1a2e !important;
           }
-
-          .chart-title {
-            color: #1a1a2e !important;
-          }
-
-          /* Make all text dark for print */
-          text, p, span, div {
-            color: #1a1a2e !important;
-          }
-
-          /* Ensure curve is visible - uses custom color from state */
           svg path[d*="M"] {
             stroke-width: 3 !important;
           }
-
-          /* Ensure test markers are visible */
-          circle {
-            stroke: #333 !important;
+          .report-summary-grid {
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
-
-          /* Legend items */
-          .legend-item {
-            color: #1a1a2e !important;
+          .page-break-before {
+            page-break-before: always;
+            break-before: page;
           }
-
-          /* Info panel */
-          .info-panel {
-            background: #f8f9fa !important;
-            border: 1px solid #ddd !important;
-            color: #1a1a2e !important;
-          }
-
-          .info-panel h4, .info-panel p {
-            color: #1a1a2e !important;
-          }
-
-          /* Summary section */
-          .editable-summary {
-            background: white !important;
-            border: 1px solid #ddd !important;
-            color: #1a1a2e !important;
-          }
-
           /* Ensure colors are visible in print */
           * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
-
           @page {
-            margin: 0.75in;
+            margin: 0.6in;
             size: letter;
           }
         }
@@ -1616,8 +1696,8 @@ function BellCurveApp() {
         }
       `}</style>
 
-      {/* Header */}
-      <div style={{
+      {/* Header - hidden in print mode */}
+      {!printMode && <div style={{
         padding: '30px 40px',
         borderBottom: '1px solid var(--header-border)',
         display: 'flex',
@@ -1692,26 +1772,17 @@ function BellCurveApp() {
           >
             📊 Presentation
           </button>
-          {mode === 'presentation' && tests.length > 0 && (
-            <>
-              <button
-                className="mode-btn inactive no-print"
-                onClick={() => setIsPrintPreview(!isPrintPreview)}
-                title="Toggle print preview"
-              >
-                {isPrintPreview ? '🧾 Exit Preview' : '🧾 Print Preview'}
-              </button>
-              <button
-                className="mode-btn inactive no-print"
-                onClick={handleDownloadPdf}
-                title="Download or save as PDF"
-              >
-                📄 Download PDF
-              </button>
-            </>
+          {mode === 'presentation' && tests.length > 0 && !printMode && (
+            <button
+              className="mode-btn inactive no-print"
+              onClick={() => setPrintMode(true)}
+              title="Print preview"
+            >
+              🧾 Print Preview
+            </button>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Branding Configuration Panel */}
       {showBrandingPanel && (
@@ -2269,7 +2340,7 @@ function BellCurveApp() {
         </div>
       )}
 
-      <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto' }}>
+      <div style={{ padding: printMode ? '0' : '40px', maxWidth: printMode ? 'none' : '1400px', margin: '0 auto' }}>
         {mode === 'input' ? (
           /* INPUT MODE */
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
@@ -2814,6 +2885,273 @@ function BellCurveApp() {
                   The <strong>shaded area</strong> represents the average range (85-115), where most scores fall.
                   Scores are measured on a standard scale where 100 is the mean average and each 15 points
                   represents one standard deviation from the mean.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : printMode ? (
+          /* REPORT PRINT VIEW */
+          <div>
+            {/* Print toolbar - hidden when actually printing */}
+            <div className="print-toolbar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button className="btn-back" onClick={() => setPrintMode(false)}>
+                  ← Back to Presentation
+                </button>
+                <span style={{ fontSize: '14px', opacity: 0.7 }}>Report Preview</span>
+              </div>
+              <button className="btn-print" onClick={handlePrint}>
+                🖨️ Print / Save PDF
+              </button>
+            </div>
+
+            <div className="report-view">
+              {/* ─── PAGE 1: SUMMARY ─── */}
+
+              {/* Report Header */}
+              <div className="report-header">
+                {branding.schoolLogo && (
+                  <img
+                    src={branding.schoolLogo}
+                    alt="School Logo"
+                    style={{ maxWidth: '120px', maxHeight: '60px', objectFit: 'contain', marginBottom: '12px' }}
+                  />
+                )}
+                <h1>
+                  {studentName
+                    ? `${studentName}'s Assessment Report`
+                    : 'Student Assessment Report'}
+                </h1>
+                {branding.schoolName && (
+                  <p className="subtitle">{branding.schoolName}</p>
+                )}
+                {assessmentDate && (
+                  <p className="subtitle">
+                    Assessment Date: {new Date(assessmentDate).toLocaleDateString('en-US', {
+                      year: 'numeric', month: 'long', day: 'numeric'
+                    })}
+                  </p>
+                )}
+              </div>
+
+              {/* Summary grid: Chart + Legend */}
+              {getVisibleTests().length > 0 && (() => {
+                const selectedTests = getVisibleTests();
+                const sortedTests = [...selectedTests].sort((a, b) => b.score - a.score);
+                const scoreGroups = groupTestsByScore(selectedTests);
+                const dotStyle = getDotStyle(selectedTests.length);
+
+                return (
+                  <div className="report-summary-grid">
+                    {/* LEFT: Bell curve chart (clean, minimal) */}
+                    <div className="report-chart-box">
+                      <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 700, color: '#1b1f2e' }}>
+                        Score Distribution
+                      </h3>
+                      <svg viewBox="0 0 800 380" style={{ width: '100%', height: 'auto' }}>
+                        {/* Grid lines */}
+                        {[55, 70, 85, 100, 115, 130, 145].map((score) => (
+                          <line
+                            key={score}
+                            x1={getScoreX(score)}
+                            y1={chartTopPadding}
+                            x2={getScoreX(score)}
+                            y2={chartBottomY}
+                            stroke="#d2d8e5"
+                            strokeDasharray="4,4"
+                          />
+                        ))}
+
+                        {/* Average range highlight */}
+                        <path d={averageAreaPath} fill="rgba(27, 31, 46, 0.06)" />
+
+                        {/* Bell curve */}
+                        <path
+                          d={bellPath}
+                          fill={`${bellCurveColor}20`}
+                          stroke={bellCurveColor}
+                          strokeWidth="2.5"
+                        />
+
+                        {/* Gradient definition */}
+                        <defs>
+                          <filter id="printGlow">
+                            <feGaussianBlur stdDeviation="2" result="blur" />
+                            <feMerge>
+                              <feMergeNode in="blur" />
+                              <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                          </filter>
+                        </defs>
+
+                        {/* Score labels on x-axis */}
+                        {SCORE_LABELS.map(({ score, label }) => (
+                          <g key={score}>
+                            <text x={getScoreX(score)} y="330" textAnchor="middle" fill="#2c344b" fontSize="12" fontWeight="600" fontFamily="Nunito, sans-serif">
+                              {score}
+                            </text>
+                            <text x={getScoreX(score)} y="348" textAnchor="middle" fill="#6c7489" fontSize="9" fontFamily="Nunito, sans-serif">
+                              {label}
+                            </text>
+                          </g>
+                        ))}
+
+                        {/* Average range label */}
+                        <text x={getScoreX(100)} y="368" textAnchor="middle" fill="#4b556b" fontSize="10" fontFamily="Nunito, sans-serif" fontWeight="600">
+                          ← Average Range (85-115) →
+                        </text>
+
+                        {/* Score dots */}
+                        {dotStyle.clusterMode ? (
+                          /* Cluster-only mode (25+ tests): one dot per unique score */
+                          Array.from(scoreGroups.entries()).map(([score, testsAtScore]) => {
+                            const x = getScoreX(score);
+                            const y = getScoreY(score);
+                            return (
+                              <g key={`cluster-${score}`}>
+                                <circle cx={x} cy={y} r={dotStyle.dotRadius + 2} fill={testsAtScore[0].color} stroke="white" strokeWidth="1.5" />
+                                {testsAtScore.length > 1 && (
+                                  <text x={x} y={y - dotStyle.dotRadius - 4} textAnchor="middle" fill="#1b1f2e" fontSize="8" fontWeight="700" fontFamily="Nunito, sans-serif">
+                                    ×{testsAtScore.length}
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          })
+                        ) : (
+                          /* Normal mode: individual dots, slightly offset if same score */
+                          (() => {
+                            const allDots = [];
+                            scoreGroups.forEach((testsAtScore, score) => {
+                              const x = getScoreX(score);
+                              const baseY = getScoreY(score);
+                              if (testsAtScore.length === 1) {
+                                allDots.push(
+                                  <g key={testsAtScore[0].id}>
+                                    <circle cx={x} cy={baseY} r={dotStyle.dotRadius} fill={testsAtScore[0].color} stroke="white" strokeWidth="1.5" />
+                                  </g>
+                                );
+                              } else {
+                                /* Cluster: one shared dot with ×N badge */
+                                allDots.push(
+                                  <g key={`cluster-${score}`}>
+                                    <circle cx={x} cy={baseY} r={dotStyle.dotRadius + 2} fill={testsAtScore[0].color} stroke="white" strokeWidth="1.5" />
+                                    <text x={x} y={baseY - dotStyle.dotRadius - 4} textAnchor="middle" fill="#1b1f2e" fontSize="8" fontWeight="700" fontFamily="Nunito, sans-serif">
+                                      ×{testsAtScore.length}
+                                    </text>
+                                  </g>
+                                );
+                              }
+                            });
+                            return allDots;
+                          })()
+                        )}
+                      </svg>
+                    </div>
+
+                    {/* RIGHT: Score Legend */}
+                    <div className="report-legend-box">
+                      <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 700, color: '#1b1f2e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Score Legend
+                      </h3>
+                      <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                        {sortedTests.map((test) => (
+                          <div key={test.id} className="report-legend-row">
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: test.color, flexShrink: 0 }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, color: '#1b1f2e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {test.name}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0, fontSize: '12px' }}>
+                              <span style={{ fontWeight: 700, color: test.color }}>{test.score}</span>
+                              <span style={{ color: '#5b657a', marginLeft: '6px' }}>({formatPercentile(getPercentileRank(test.score))})</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Notes/Interpretation section */}
+              {computedSummary && (
+                <div style={{
+                  border: '1px solid #d2d8e5',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  marginBottom: '32px',
+                  background: '#fafbfd',
+                }}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '15px', fontWeight: 700, color: '#1b1f2e' }}>
+                    Summary & Interpretation
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.7, color: '#3b455c' }}>
+                    {computedSummary}
+                  </p>
+                </div>
+              )}
+
+              {/* ─── PAGE 2+: FULL RESULTS TABLE ─── */}
+              {getVisibleTests().length > 0 && (() => {
+                const selectedTests = getVisibleTests();
+                const sortedTests = [...selectedTests].sort((a, b) => b.score - a.score);
+
+                return (
+                  <div className="page-break-before">
+                    <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: 700, color: '#1b1f2e', borderBottom: '2px solid #667eea', paddingBottom: '10px' }}>
+                      Full Results
+                    </h2>
+                    <table className="results-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '30px' }}></th>
+                          <th>Test Name</th>
+                          <th style={{ width: '100px' }}>Standard Score</th>
+                          <th style={{ width: '90px' }}>Percentile</th>
+                          <th style={{ width: '120px' }}>Range</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedTests.map((test) => (
+                          <tr key={test.id}>
+                            <td>
+                              <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: test.color, margin: '0 auto' }} />
+                            </td>
+                            <td style={{ fontWeight: 600 }}>{test.name}</td>
+                            <td style={{ fontWeight: 700, color: test.color, textAlign: 'center' }}>{test.score}</td>
+                            <td style={{ textAlign: 'center' }}>{formatPercentile(getPercentileRank(test.score))}</td>
+                            <td>{getScoreDescription(test.score)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Summary statistics */}
+                    <div style={{ display: 'flex', gap: '24px', marginTop: '24px', padding: '16px', background: '#f2f5fb', borderRadius: '8px', fontSize: '13px' }}>
+                      <div><strong>Tests:</strong> {sortedTests.length}</div>
+                      <div><strong>Mean Score:</strong> {Math.round(sortedTests.reduce((sum, t) => sum + t.score, 0) / sortedTests.length)}</div>
+                      <div><strong>Highest:</strong> {Math.max(...sortedTests.map(t => t.score))}</div>
+                      <div><strong>Lowest:</strong> {Math.min(...sortedTests.map(t => t.score))}</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Report footer */}
+              <div style={{
+                marginTop: '40px',
+                paddingTop: '16px',
+                borderTop: '1px solid #d2d8e5',
+                fontSize: '11px',
+                color: '#5b657a',
+                textAlign: 'center',
+              }}>
+                {branding.footerText && <p style={{ margin: '0 0 6px 0' }}>{branding.footerText}</p>}
+                <p style={{ margin: 0 }}>
+                  Generated on {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  {branding.schoolName && ` · ${branding.schoolName}`}
                 </p>
               </div>
             </div>
