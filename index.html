@@ -332,6 +332,8 @@ function BellCurveApp() {
 
   // Refs for sidebar rows (for auto-scroll)
   const sidebarRowRefs = React.useRef({});
+  // Track hover source to avoid auto-scroll fighting user's manual scroll
+  const hoverSourceRef = React.useRef(null); // 'chart' or 'sidebar'
   const [printMode, setPrintMode] = React.useState(false);
   const [showHelpPanel, setShowHelpPanel] = React.useState(false);
   const importInputRef = React.useRef(null);
@@ -1034,10 +1036,10 @@ function BellCurveApp() {
   const focusedTest = getFocusedTest();
   const focusedTestId = focusedTest?.id || null;
 
-  // Auto-scroll sidebar when focused test changes from chart interaction
+  // Auto-scroll sidebar only when hover/selection originates from chart interaction
   React.useEffect(() => {
     const testIdToScroll = activeTestId || hoveredTestId;
-    if (testIdToScroll && sidebarRowRefs.current[testIdToScroll]) {
+    if (testIdToScroll && hoverSourceRef.current === 'chart' && sidebarRowRefs.current[testIdToScroll]) {
       sidebarRowRefs.current[testIdToScroll].scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
@@ -3288,8 +3290,8 @@ function BellCurveApp() {
                                 }
                               }
                             }}
-                            onMouseEnter={() => setHoveredTestId(test.id)}
-                            onMouseLeave={() => setHoveredTestId(null)}
+                            onMouseEnter={() => { hoverSourceRef.current = 'sidebar'; setHoveredTestId(test.id); }}
+                            onMouseLeave={() => { setHoveredTestId(null); hoverSourceRef.current = null; }}
                             style={{
                               color: test.color,
                               padding: '10px 14px',
@@ -3588,8 +3590,8 @@ function BellCurveApp() {
                         <g
                           key={test.id}
                           className="score-marker"
-                          onMouseEnter={() => setHoveredTestId(test.id)}
-                          onMouseLeave={() => setHoveredTestId(null)}
+                          onMouseEnter={() => { hoverSourceRef.current = 'chart'; setHoveredTestId(test.id); }}
+                          onMouseLeave={() => { setHoveredTestId(null); hoverSourceRef.current = null; }}
                           onClick={() => setActiveTestId(test.id)}
                           style={{
                             cursor: 'pointer',
@@ -3814,8 +3816,8 @@ function BellCurveApp() {
                         return (
                           <div
                             key={test.id}
-                            onMouseEnter={() => setHoveredTestId(test.id)}
-                            onMouseLeave={() => setHoveredTestId(null)}
+                            onMouseEnter={() => { hoverSourceRef.current = 'chart'; setHoveredTestId(test.id); }}
+                            onMouseLeave={() => { setHoveredTestId(null); hoverSourceRef.current = null; }}
                             onClick={() => {
                               setActiveTestId(test.id);
                               setOpenClusterId(null);
