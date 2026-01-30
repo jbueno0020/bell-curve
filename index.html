@@ -432,7 +432,7 @@ function BellCurveApp() {
 
   React.useEffect(() => {
     const handleAfterPrint = () => {
-      setIsPrintPreview(false);
+      setPrintMode(false);
     };
     window.addEventListener('afterprint', handleAfterPrint);
     return () => window.removeEventListener('afterprint', handleAfterPrint);
@@ -440,7 +440,7 @@ function BellCurveApp() {
 
   React.useEffect(() => {
     if (mode !== 'presentation') {
-      setIsPrintPreview(false);
+      setPrintMode(false);
     }
   }, [mode]);
 
