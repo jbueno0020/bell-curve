@@ -916,26 +916,23 @@ function BellCurveApp() {
 
     // Scores in the average range
     if (average.length > 0) {
-      summary.push(`Scores in the Average range (85–114) include ${average.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}, indicating age-appropriate functioning in ${average.length === 1 ? 'this area' : 'these areas'}.`);
+      summary.push(`Scores in the Average range (85–114) include ${average.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}.`);
     }
 
     // Scores above average
     if (aboveAverage.length > 0) {
-      summary.push(`${aboveAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${aboveAverage.length === 1 ? 'falls' : 'fall'} above the Average range, representing a relative strength.`);
+      summary.push(`${aboveAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${aboveAverage.length === 1 ? 'falls' : 'fall'} above the Average range.`);
     }
 
     // Scores in the below average range
     if (belowAverage.length > 0) {
-      summary.push(`${belowAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${belowAverage.length === 1 ? 'falls' : 'fall'} in the Below Average range (70–84), suggesting ${belowAverage.length === 1 ? 'this area may' : 'these areas may'} benefit from targeted support.`);
+      summary.push(`${belowAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${belowAverage.length === 1 ? 'falls' : 'fall'} in the Below Average range (70–84).`);
     }
 
     // Scores well below average
     if (wellBelowAverage.length > 0) {
-      summary.push(`${wellBelowAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${wellBelowAverage.length === 1 ? 'falls' : 'fall'} in the Well Below Average range (below 70), indicating a significant area of concern that warrants further evaluation and intervention.`);
+      summary.push(`${wellBelowAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${wellBelowAverage.length === 1 ? 'falls' : 'fall'} in the Well Below Average range (below 70).`);
     }
-
-    // Closing interpretation note
-    summary.push(`These results should be interpreted in the context of ${studentName || 'the student'}'s educational history, behavioral observations, and other relevant information.`);
 
     return summary.join(' ');
   };
