@@ -899,47 +899,43 @@ function BellCurveApp() {
 
     const sortedTests = [...tests].sort((a, b) => b.score - a.score);
 
-    // Categorize scores
-    const veryHigh = tests.filter(t => t.score >= 130);
-    const high = tests.filter(t => t.score >= 115 && t.score < 130);
+    // Categorize scores by range
+    const aboveAverage = tests.filter(t => t.score >= 115);
     const average = tests.filter(t => t.score >= 85 && t.score < 115);
-    const low = tests.filter(t => t.score >= 70 && t.score < 85);
-    const veryLow = tests.filter(t => t.score < 70);
+    const belowAverage = tests.filter(t => t.score >= 70 && t.score < 85);
+    const wellBelowAverage = tests.filter(t => t.score < 70);
 
     let summary = [];
 
-    // Strengths
-    if (veryHigh.length > 0 || high.length > 0) {
-      const strengths = [...veryHigh, ...high];
-      summary.push(`${studentName || 'The student'} demonstrates notable strengths in ${strengths.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}.`);
-    }
-
-    // Average performance areas
-    if (average.length > 0) {
-      summary.push(`Performance in the average range was noted for ${average.map(t => t.name).join(', ')}, indicating age-appropriate development in these areas.`);
-    }
-
-    // Areas of concern
-    if (low.length > 0 || veryLow.length > 0) {
-      const concerns = [...low, ...veryLow];
-      summary.push(`Areas that may benefit from additional support include ${concerns.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}.`);
-    }
-
-    // Score variability
-    const highest = sortedTests[0];
+    // Opening statement with overall profile
+    const allScores = tests.map(t => t.score);
     const lowest = sortedTests[sortedTests.length - 1];
-    const range = highest.score - lowest.score;
+    const highest = sortedTests[0];
 
-    if (range >= 30) {
-      summary.push(`There is significant variability in performance across assessed areas, with scores ranging from ${lowest.score} (${lowest.name}) to ${highest.score} (${highest.name}). This ${range}-point difference suggests an uneven cognitive profile with distinct strengths and weaknesses.`);
-    } else if (range >= 15) {
-      summary.push(`Performance shows moderate variability across assessed areas, with scores ranging from ${lowest.score} to ${highest.score}.`);
-    } else {
-      summary.push(`Performance is relatively consistent across assessed areas, with scores ranging from ${lowest.score} to ${highest.score}.`);
+    summary.push(`${studentName || 'The student'}'s overall scores range from ${lowest.score} to ${highest.score}, placing performance across the ${[...new Set(tests.map(t => getScoreDescription(t.score)))].join(', ').replace(/, ([^,]*)$/, ', and $1')} range${tests.length > 1 ? 's' : ''}.`);
+
+    // Scores in the average range
+    if (average.length > 0) {
+      summary.push(`Scores in the Average range (85–114) include ${average.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}, indicating age-appropriate functioning in ${average.length === 1 ? 'this area' : 'these areas'}.`);
     }
 
-    // Recommendations
-    summary.push(`These results should be interpreted in the context of ${studentName || 'the student'}'s educational history, behavioral observations, and other relevant information. Follow-up discussions with the educational team are recommended to develop appropriate interventions and support strategies.`);
+    // Scores above average
+    if (aboveAverage.length > 0) {
+      summary.push(`${aboveAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${aboveAverage.length === 1 ? 'falls' : 'fall'} above the Average range, representing a relative strength.`);
+    }
+
+    // Scores in the below average range
+    if (belowAverage.length > 0) {
+      summary.push(`${belowAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${belowAverage.length === 1 ? 'falls' : 'fall'} in the Below Average range (70–84), suggesting ${belowAverage.length === 1 ? 'this area may' : 'these areas may'} benefit from targeted support.`);
+    }
+
+    // Scores well below average
+    if (wellBelowAverage.length > 0) {
+      summary.push(`${wellBelowAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${wellBelowAverage.length === 1 ? 'falls' : 'fall'} in the Well Below Average range (below 70), indicating a significant area of concern that warrants further evaluation and intervention.`);
+    }
+
+    // Closing interpretation note
+    summary.push(`These results should be interpreted in the context of ${studentName || 'the student'}'s educational history, behavioral observations, and other relevant information.`);
 
     return summary.join(' ');
   };
