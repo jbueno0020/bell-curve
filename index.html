@@ -361,6 +361,13 @@ function BellCurveApp() {
   const [currentProfileId, setCurrentProfileId] = React.useState(null);
   const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
 
+  // Custom test presets state
+  const [customPresets, setCustomPresets] = React.useState([]);
+  const [showManageTestsPanel, setShowManageTestsPanel] = React.useState(false);
+  const [editingPreset, setEditingPreset] = React.useState(null);
+  const [newPresetName, setNewPresetName] = React.useState('');
+  const [newPresetSubtests, setNewPresetSubtests] = React.useState('');
+
   // Autocomplete state
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
   const [showAutocomplete, setShowAutocomplete] = React.useState(false);
@@ -415,10 +422,24 @@ function BellCurveApp() {
       if (savedCurveColor) {
         setBellCurveColor(savedCurveColor);
       }
+
+      const savedCustomPresets = localStorage.getItem('bellcurve_custom_presets');
+      if (savedCustomPresets) {
+        setCustomPresets(JSON.parse(savedCustomPresets));
+      }
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
     }
   }, []);
+
+  // Save custom presets to localStorage whenever they change
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('bellcurve_custom_presets', JSON.stringify(customPresets));
+    } catch (error) {
+      console.error('Error saving custom presets:', error);
+    }
+  }, [customPresets]);
 
   // Save branding to localStorage whenever it changes
   React.useEffect(() => {
@@ -634,13 +655,33 @@ function BellCurveApp() {
     setVisibleTestIds(new Set(templatedTests.map(t => t.id)));
   };
 
+  // Merge built-in and custom presets for autocomplete
+  const allPresets = React.useMemo(() => {
+    // Get the test batteries (objects with name and subtests)
+    const builtInBatteries = PREDEFINED_TESTS.filter(t => typeof t === 'object' && t.subtests);
+    const builtInStandalone = PREDEFINED_TESTS.filter(t => typeof t === 'string');
+
+    // Merge custom presets (they can override built-in ones by name)
+    const customBatteryNames = new Set(customPresets.map(p => p.name));
+    const mergedBatteries = [
+      ...builtInBatteries.filter(b => !customBatteryNames.has(b.name)),
+      ...customPresets
+    ];
+
+    // Also include all subtests from custom presets as standalone options
+    const customSubtests = customPresets.flatMap(p => p.subtests || []);
+    const allStandalone = [...new Set([...builtInStandalone, ...customSubtests])];
+
+    return [...mergedBatteries, ...allStandalone];
+  }, [customPresets]);
+
   // Autocomplete handlers
   const handleTestNameChange = (e) => {
     const value = e.target.value;
     setNewTest({ ...newTest, name: value });
 
     if (value.trim().length > 0) {
-      const filtered = PREDEFINED_TESTS.filter(test => {
+      const filtered = allPresets.filter(test => {
         if (typeof test === 'string') {
           return test.toLowerCase().includes(value.toLowerCase());
         } else {
@@ -679,6 +720,110 @@ function BellCurveApp() {
     }
     setShowAutocomplete(false);
     setAutocompleteSuggestions([]);
+  };
+
+  // Custom preset management functions
+  const handleAddCustomPreset = () => {
+    if (!newPresetName.trim()) return;
+
+    const subtestsArray = newPresetSubtests
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const newPreset = {
+      id: Date.now(),
+      name: newPresetName.trim(),
+      subtests: subtestsArray,
+      isCustom: true,
+    };
+
+    setCustomPresets([...customPresets, newPreset]);
+    setNewPresetName('');
+    setNewPresetSubtests('');
+  };
+
+  const handleEditPreset = (preset) => {
+    setEditingPreset({
+      ...preset,
+      subtestsText: preset.subtests.join('\n'),
+    });
+  };
+
+  const handleSavePresetEdit = () => {
+    if (!editingPreset || !editingPreset.name.trim()) return;
+
+    const subtestsArray = editingPreset.subtestsText
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    if (editingPreset.isCustom) {
+      // Update existing custom preset
+      setCustomPresets(customPresets.map(p =>
+        p.id === editingPreset.id
+          ? { ...p, name: editingPreset.name.trim(), subtests: subtestsArray }
+          : p
+      ));
+    } else {
+      // Create a custom override for a built-in preset
+      const existingCustom = customPresets.find(p => p.name === editingPreset.originalName);
+      if (existingCustom) {
+        setCustomPresets(customPresets.map(p =>
+          p.name === editingPreset.originalName
+            ? { ...p, name: editingPreset.name.trim(), subtests: subtestsArray }
+            : p
+        ));
+      } else {
+        setCustomPresets([...customPresets, {
+          id: Date.now(),
+          name: editingPreset.name.trim(),
+          subtests: subtestsArray,
+          isCustom: true,
+          overrides: editingPreset.originalName,
+        }]);
+      }
+    }
+
+    setEditingPreset(null);
+  };
+
+  const handleDeletePreset = (preset) => {
+    if (preset.isCustom) {
+      setCustomPresets(customPresets.filter(p => p.id !== preset.id));
+    }
+    setEditingPreset(null);
+  };
+
+  const handleResetToBuiltIn = (presetName) => {
+    // Remove any custom override for this preset
+    setCustomPresets(customPresets.filter(p => p.name !== presetName && p.overrides !== presetName));
+  };
+
+  // Get all test batteries for display in manage panel
+  const getAllTestBatteries = () => {
+    const builtInBatteries = PREDEFINED_TESTS.filter(t => typeof t === 'object' && t.subtests);
+    const customBatteryNames = new Set(customPresets.map(p => p.name));
+    const overriddenNames = new Set(customPresets.filter(p => p.overrides).map(p => p.overrides));
+
+    const result = [];
+
+    // Add built-in batteries (mark if overridden)
+    builtInBatteries.forEach(b => {
+      const customOverride = customPresets.find(p => p.name === b.name || p.overrides === b.name);
+      if (customOverride) {
+        result.push({ ...customOverride, isOverride: true, originalName: b.name });
+      } else {
+        result.push({ ...b, isCustom: false });
+      }
+    });
+
+    // Add custom batteries that aren't overrides
+    customPresets.filter(p => !p.overrides && !builtInBatteries.some(b => b.name === p.name)).forEach(p => {
+      result.push(p);
+    });
+
+    return result;
   };
 
   // Close autocomplete when clicking outside
@@ -2344,6 +2489,228 @@ function BellCurveApp() {
         </div>
       )}
 
+      {/* Manage Tests Panel */}
+      {showManageTestsPanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: themeColors.cardBg,
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '900px',
+            width: '100%',
+            border: `1px solid ${themeColors.cardBorder}`,
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            boxShadow: 'var(--shadow)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+              <h2 style={{
+                margin: 0,
+                fontSize: '28px',
+                fontWeight: 700,
+                color: themeColors.text,
+              }}>
+                🧪 Manage Test Library
+              </h2>
+              <button
+                className="control-btn"
+                onClick={() => {
+                  setShowManageTestsPanel(false);
+                  setEditingPreset(null);
+                  setNewPresetName('');
+                  setNewPresetSubtests('');
+                }}
+                style={{ padding: '8px 16px' }}
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Add New Test Battery */}
+            <div style={{
+              background: 'var(--surface)',
+              borderRadius: '16px',
+              padding: '24px',
+              marginBottom: '24px',
+              border: `1px solid ${themeColors.cardBorder}`,
+            }}>
+              <h3 style={{
+                margin: '0 0 16px 0',
+                fontSize: '16px',
+                fontWeight: 600,
+                color: themeColors.text,
+              }}>
+                Add New Test Battery
+              </h3>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                <input
+                  type="text"
+                  placeholder="Test Battery Name (e.g., WISC-V)"
+                  value={newPresetName}
+                  onChange={(e) => setNewPresetName(e.target.value)}
+                  className="input-field"
+                  style={{ flex: 1 }}
+                />
+              </div>
+              <textarea
+                placeholder="Enter subtests/clusters, one per line:&#10;Full Scale IQ&#10;Verbal Comprehension Index&#10;Working Memory Index"
+                value={newPresetSubtests}
+                onChange={(e) => setNewPresetSubtests(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+              <button
+                className="add-btn"
+                onClick={handleAddCustomPreset}
+                disabled={!newPresetName.trim()}
+                style={{ marginTop: '16px' }}
+              >
+                + Add Test Battery
+              </button>
+            </div>
+
+            {/* Test Battery List */}
+            <div>
+              <h3 style={{
+                margin: '0 0 16px 0',
+                fontSize: '16px',
+                fontWeight: 600,
+                color: themeColors.text,
+              }}>
+                All Test Batteries ({getAllTestBatteries().length})
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto' }}>
+                {getAllTestBatteries().map((battery, index) => (
+                  <div
+                    key={battery.id || battery.name}
+                    style={{
+                      background: 'var(--surface)',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      border: `1px solid ${themeColors.cardBorder}`,
+                    }}
+                  >
+                    {editingPreset && (editingPreset.id === battery.id || editingPreset.name === battery.name) ? (
+                      /* Edit Mode */
+                      <div>
+                        <input
+                          type="text"
+                          value={editingPreset.name}
+                          onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })}
+                          className="input-field"
+                          style={{ width: '100%', marginBottom: '12px', fontWeight: 600 }}
+                        />
+                        <textarea
+                          value={editingPreset.subtestsText}
+                          onChange={(e) => setEditingPreset({ ...editingPreset, subtestsText: e.target.value })}
+                          className="input-field"
+                          style={{ width: '100%', minHeight: '120px', resize: 'vertical', fontFamily: 'inherit' }}
+                          placeholder="Enter subtests, one per line"
+                        />
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                          <button
+                            className="add-btn"
+                            onClick={handleSavePresetEdit}
+                            style={{ padding: '8px 16px' }}
+                          >
+                            Save Changes
+                          </button>
+                          <button
+                            className="control-btn"
+                            onClick={() => setEditingPreset(null)}
+                            style={{ padding: '8px 16px' }}
+                          >
+                            Cancel
+                          </button>
+                          {editingPreset.isCustom && (
+                            <button
+                              className="control-btn"
+                              onClick={() => handleDeletePreset(editingPreset)}
+                              style={{ padding: '8px 16px', color: '#ff6b6b', marginLeft: 'auto' }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* View Mode */
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <div>
+                            <div style={{ fontWeight: 600, color: themeColors.text, marginBottom: '4px' }}>
+                              {battery.name}
+                              {battery.isCustom && (
+                                <span style={{
+                                  marginLeft: '8px',
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  background: 'var(--primary)',
+                                  color: '#fff',
+                                  borderRadius: '4px',
+                                }}>
+                                  Custom
+                                </span>
+                              )}
+                              {battery.isOverride && (
+                                <span style={{
+                                  marginLeft: '8px',
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  background: '#f59e0b',
+                                  color: '#fff',
+                                  borderRadius: '4px',
+                                }}>
+                                  Modified
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '13px', color: themeColors.textSecondary }}>
+                              {battery.subtests.length} subtests: {battery.subtests.slice(0, 3).join(', ')}{battery.subtests.length > 3 ? '...' : ''}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="control-btn"
+                              onClick={() => handleEditPreset({ ...battery, originalName: battery.name })}
+                              style={{ padding: '6px 12px', fontSize: '12px' }}
+                            >
+                              Edit
+                            </button>
+                            {battery.isOverride && (
+                              <button
+                                className="control-btn"
+                                onClick={() => handleResetToBuiltIn(battery.originalName || battery.name)}
+                                style={{ padding: '6px 12px', fontSize: '12px' }}
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div style={{ padding: printMode ? '0' : '40px', maxWidth: printMode ? 'none' : '1400px', margin: '0 auto' }}>
         {mode === 'input' ? (
           /* INPUT MODE */
@@ -2418,16 +2785,30 @@ function BellCurveApp() {
                 marginBottom: '28px',
                 border: `1px solid ${themeColors.cardBorder}`,
               }}>
-                <h3 style={{
-                  margin: '0 0 20px 0',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: themeColors.text,
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '20px',
                 }}>
-                  ➕ Add Test Score
-                </h3>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: themeColors.text,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}>
+                    ➕ Add Test Score
+                  </h3>
+                  <button
+                    className="control-btn"
+                    onClick={() => setShowManageTestsPanel(true)}
+                    style={{ fontSize: '12px', padding: '8px 14px' }}
+                  >
+                    Manage Test Library
+                  </button>
+                </div>
                 
                 <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
                   <div style={{ flex: 2, position: 'relative' }} ref={autocompleteRef}>
