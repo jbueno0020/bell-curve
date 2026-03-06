@@ -140,12 +140,21 @@ const PREDEFINED_TESTS = [
   {
     name: 'Woodcock-Johnson IV Tests of Achievement (WJ-IV ACH)',
     subtests: [
-      'Broad Reading',
-      'Broad Mathematics',
-      'Broad Written Language',
-      'Academic Skills',
-      'Academic Fluency',
-      'Academic Applications',
+      'Mathematical Calculation',
+      'Reading Comprehension',
+      'Basic Reading Skills',
+      'Written Expression',
+      'Reading Fluency',
+      'Listening Comprehension',
+    ]
+  },
+  {
+    name: 'Woodcock-Johnson IV Tests of Oral Language (WJ-IV OL)',
+    subtests: [
+      'Oral Language',
+      'Broad Oral Language',
+      'Oral Expression',
+      'Listening Comprehension',
     ]
   },
   {
@@ -332,7 +341,9 @@ function BellCurveApp() {
 
   // Refs for sidebar rows (for auto-scroll)
   const sidebarRowRefs = React.useRef({});
-  const [isPrintPreview, setIsPrintPreview] = React.useState(false);
+  // Track hover source to avoid auto-scroll fighting user's manual scroll
+  const hoverSourceRef = React.useRef(null); // 'chart' or 'sidebar'
+  const [printMode, setPrintMode] = React.useState(false);
   const [showHelpPanel, setShowHelpPanel] = React.useState(false);
   const importInputRef = React.useRef(null);
 
@@ -349,6 +360,13 @@ function BellCurveApp() {
   const [savedProfiles, setSavedProfiles] = React.useState([]);
   const [currentProfileId, setCurrentProfileId] = React.useState(null);
   const [showProfilesPanel, setShowProfilesPanel] = React.useState(false);
+
+  // Custom test presets state
+  const [customPresets, setCustomPresets] = React.useState([]);
+  const [showManageTestsPanel, setShowManageTestsPanel] = React.useState(false);
+  const [editingPreset, setEditingPreset] = React.useState(null);
+  const [newPresetName, setNewPresetName] = React.useState('');
+  const [newPresetSubtests, setNewPresetSubtests] = React.useState('');
 
   // Autocomplete state
   const [autocompleteSuggestions, setAutocompleteSuggestions] = React.useState([]);
@@ -404,10 +422,24 @@ function BellCurveApp() {
       if (savedCurveColor) {
         setBellCurveColor(savedCurveColor);
       }
+
+      const savedCustomPresets = localStorage.getItem('bellcurve_custom_presets');
+      if (savedCustomPresets) {
+        setCustomPresets(JSON.parse(savedCustomPresets));
+      }
     } catch (error) {
       console.error('Error loading data from localStorage:', error);
     }
   }, []);
+
+  // Save custom presets to localStorage whenever they change
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('bellcurve_custom_presets', JSON.stringify(customPresets));
+    } catch (error) {
+      console.error('Error saving custom presets:', error);
+    }
+  }, [customPresets]);
 
   // Save branding to localStorage whenever it changes
   React.useEffect(() => {
@@ -432,7 +464,7 @@ function BellCurveApp() {
 
   React.useEffect(() => {
     const handleAfterPrint = () => {
-      setIsPrintPreview(false);
+      setPrintMode(false);
     };
     window.addEventListener('afterprint', handleAfterPrint);
     return () => window.removeEventListener('afterprint', handleAfterPrint);
@@ -440,7 +472,7 @@ function BellCurveApp() {
 
   React.useEffect(() => {
     if (mode !== 'presentation') {
-      setIsPrintPreview(false);
+      setPrintMode(false);
     }
   }, [mode]);
 
@@ -543,10 +575,17 @@ function BellCurveApp() {
   };
 
   const handleDownloadPdf = () => {
-    setIsPrintPreview(true);
+    setPrintMode(true);
     setTimeout(() => {
       window.print();
-    }, 100);
+    }, 200);
+  };
+
+  // Helper: get dot style based on number of selected tests
+  const getDotStyle = (count) => {
+    if (count <= 12) return { dotRadius: 6, fontSize: '9', clusterMode: false };
+    if (count <= 24) return { dotRadius: 4, fontSize: '7', clusterMode: false };
+    return { dotRadius: 5, fontSize: '8', clusterMode: true };
   };
 
   const handleExportProfiles = () => {
@@ -616,13 +655,33 @@ function BellCurveApp() {
     setVisibleTestIds(new Set(templatedTests.map(t => t.id)));
   };
 
+  // Merge built-in and custom presets for autocomplete
+  const allPresets = React.useMemo(() => {
+    // Get the test batteries (objects with name and subtests)
+    const builtInBatteries = PREDEFINED_TESTS.filter(t => typeof t === 'object' && t.subtests);
+    const builtInStandalone = PREDEFINED_TESTS.filter(t => typeof t === 'string');
+
+    // Merge custom presets (they can override built-in ones by name)
+    const customBatteryNames = new Set(customPresets.map(p => p.name));
+    const mergedBatteries = [
+      ...builtInBatteries.filter(b => !customBatteryNames.has(b.name)),
+      ...customPresets
+    ];
+
+    // Also include all subtests from custom presets as standalone options
+    const customSubtests = customPresets.flatMap(p => p.subtests || []);
+    const allStandalone = [...new Set([...builtInStandalone, ...customSubtests])];
+
+    return [...mergedBatteries, ...allStandalone];
+  }, [customPresets]);
+
   // Autocomplete handlers
   const handleTestNameChange = (e) => {
     const value = e.target.value;
     setNewTest({ ...newTest, name: value });
 
     if (value.trim().length > 0) {
-      const filtered = PREDEFINED_TESTS.filter(test => {
+      const filtered = allPresets.filter(test => {
         if (typeof test === 'string') {
           return test.toLowerCase().includes(value.toLowerCase());
         } else {
@@ -661,6 +720,110 @@ function BellCurveApp() {
     }
     setShowAutocomplete(false);
     setAutocompleteSuggestions([]);
+  };
+
+  // Custom preset management functions
+  const handleAddCustomPreset = () => {
+    if (!newPresetName.trim()) return;
+
+    const subtestsArray = newPresetSubtests
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    const newPreset = {
+      id: Date.now(),
+      name: newPresetName.trim(),
+      subtests: subtestsArray,
+      isCustom: true,
+    };
+
+    setCustomPresets([...customPresets, newPreset]);
+    setNewPresetName('');
+    setNewPresetSubtests('');
+  };
+
+  const handleEditPreset = (preset) => {
+    setEditingPreset({
+      ...preset,
+      subtestsText: preset.subtests.join('\n'),
+    });
+  };
+
+  const handleSavePresetEdit = () => {
+    if (!editingPreset || !editingPreset.name.trim()) return;
+
+    const subtestsArray = editingPreset.subtestsText
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+
+    if (editingPreset.isCustom) {
+      // Update existing custom preset
+      setCustomPresets(customPresets.map(p =>
+        p.id === editingPreset.id
+          ? { ...p, name: editingPreset.name.trim(), subtests: subtestsArray }
+          : p
+      ));
+    } else {
+      // Create a custom override for a built-in preset
+      const existingCustom = customPresets.find(p => p.name === editingPreset.originalName);
+      if (existingCustom) {
+        setCustomPresets(customPresets.map(p =>
+          p.name === editingPreset.originalName
+            ? { ...p, name: editingPreset.name.trim(), subtests: subtestsArray }
+            : p
+        ));
+      } else {
+        setCustomPresets([...customPresets, {
+          id: Date.now(),
+          name: editingPreset.name.trim(),
+          subtests: subtestsArray,
+          isCustom: true,
+          overrides: editingPreset.originalName,
+        }]);
+      }
+    }
+
+    setEditingPreset(null);
+  };
+
+  const handleDeletePreset = (preset) => {
+    if (preset.isCustom) {
+      setCustomPresets(customPresets.filter(p => p.id !== preset.id));
+    }
+    setEditingPreset(null);
+  };
+
+  const handleResetToBuiltIn = (presetName) => {
+    // Remove any custom override for this preset
+    setCustomPresets(customPresets.filter(p => p.name !== presetName && p.overrides !== presetName));
+  };
+
+  // Get all test batteries for display in manage panel
+  const getAllTestBatteries = () => {
+    const builtInBatteries = PREDEFINED_TESTS.filter(t => typeof t === 'object' && t.subtests);
+    const customBatteryNames = new Set(customPresets.map(p => p.name));
+    const overriddenNames = new Set(customPresets.filter(p => p.overrides).map(p => p.overrides));
+
+    const result = [];
+
+    // Add built-in batteries (mark if overridden)
+    builtInBatteries.forEach(b => {
+      const customOverride = customPresets.find(p => p.name === b.name || p.overrides === b.name);
+      if (customOverride) {
+        result.push({ ...customOverride, isOverride: true, originalName: b.name });
+      } else {
+        result.push({ ...b, isCustom: false });
+      }
+    });
+
+    // Add custom batteries that aren't overrides
+    customPresets.filter(p => !p.overrides && !builtInBatteries.some(b => b.name === p.name)).forEach(p => {
+      result.push(p);
+    });
+
+    return result;
   };
 
   // Close autocomplete when clicking outside
@@ -890,47 +1053,40 @@ function BellCurveApp() {
 
     const sortedTests = [...tests].sort((a, b) => b.score - a.score);
 
-    // Categorize scores
-    const veryHigh = tests.filter(t => t.score >= 130);
-    const high = tests.filter(t => t.score >= 115 && t.score < 130);
+    // Categorize scores by range
+    const aboveAverage = tests.filter(t => t.score >= 115);
     const average = tests.filter(t => t.score >= 85 && t.score < 115);
-    const low = tests.filter(t => t.score >= 70 && t.score < 85);
-    const veryLow = tests.filter(t => t.score < 70);
+    const belowAverage = tests.filter(t => t.score >= 70 && t.score < 85);
+    const wellBelowAverage = tests.filter(t => t.score < 70);
 
     let summary = [];
 
-    // Strengths
-    if (veryHigh.length > 0 || high.length > 0) {
-      const strengths = [...veryHigh, ...high];
-      summary.push(`${studentName || 'The student'} demonstrates notable strengths in ${strengths.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}.`);
-    }
-
-    // Average performance areas
-    if (average.length > 0) {
-      summary.push(`Performance in the average range was noted for ${average.map(t => t.name).join(', ')}, indicating age-appropriate development in these areas.`);
-    }
-
-    // Areas of concern
-    if (low.length > 0 || veryLow.length > 0) {
-      const concerns = [...low, ...veryLow];
-      summary.push(`Areas that may benefit from additional support include ${concerns.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}.`);
-    }
-
-    // Score variability
-    const highest = sortedTests[0];
+    // Opening statement with overall profile
+    const allScores = tests.map(t => t.score);
     const lowest = sortedTests[sortedTests.length - 1];
-    const range = highest.score - lowest.score;
+    const highest = sortedTests[0];
 
-    if (range >= 30) {
-      summary.push(`There is significant variability in performance across assessed areas, with scores ranging from ${lowest.score} (${lowest.name}) to ${highest.score} (${highest.name}). This ${range}-point difference suggests an uneven cognitive profile with distinct strengths and weaknesses.`);
-    } else if (range >= 15) {
-      summary.push(`Performance shows moderate variability across assessed areas, with scores ranging from ${lowest.score} to ${highest.score}.`);
-    } else {
-      summary.push(`Performance is relatively consistent across assessed areas, with scores ranging from ${lowest.score} to ${highest.score}.`);
+    summary.push(`${studentName || 'The student'}'s overall scores range from ${lowest.score} to ${highest.score}, placing performance across the ${[...new Set(tests.map(t => getScoreDescription(t.score)))].join(', ').replace(/, ([^,]*)$/, ', and $1')} range${tests.length > 1 ? 's' : ''}.`);
+
+    // Scores in the average range
+    if (average.length > 0) {
+      summary.push(`Scores in the Average range (85–114) include ${average.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')}.`);
     }
 
-    // Recommendations
-    summary.push(`These results should be interpreted in the context of ${studentName || 'the student'}'s educational history, behavioral observations, and other relevant information. Follow-up discussions with the educational team are recommended to develop appropriate interventions and support strategies.`);
+    // Scores above average
+    if (aboveAverage.length > 0) {
+      summary.push(`${aboveAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${aboveAverage.length === 1 ? 'falls' : 'fall'} above the Average range.`);
+    }
+
+    // Scores in the below average range
+    if (belowAverage.length > 0) {
+      summary.push(`${belowAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${belowAverage.length === 1 ? 'falls' : 'fall'} in the Below Average range (70–84).`);
+    }
+
+    // Scores well below average
+    if (wellBelowAverage.length > 0) {
+      summary.push(`${wellBelowAverage.map(t => `${t.name} (${t.score}, ${formatPercentile(getPercentileRank(t.score))} percentile)`).join(', ')} ${wellBelowAverage.length === 1 ? 'falls' : 'fall'} in the Well Below Average range (below 70).`);
+    }
 
     return summary.join(' ');
   };
@@ -1027,10 +1183,10 @@ function BellCurveApp() {
   const focusedTest = getFocusedTest();
   const focusedTestId = focusedTest?.id || null;
 
-  // Auto-scroll sidebar when focused test changes from chart interaction
+  // Auto-scroll sidebar only when hover/selection originates from chart interaction
   React.useEffect(() => {
     const testIdToScroll = activeTestId || hoveredTestId;
-    if (testIdToScroll && sidebarRowRefs.current[testIdToScroll]) {
+    if (testIdToScroll && hoverSourceRef.current === 'chart' && sidebarRowRefs.current[testIdToScroll]) {
       sidebarRowRefs.current[testIdToScroll].scrollIntoView({
         behavior: 'smooth',
         block: 'nearest',
@@ -1063,14 +1219,14 @@ function BellCurveApp() {
 
   return (
     <div
-      className={isPrintPreview ? 'print-preview' : ''}
+      className={printMode ? 'print-mode' : ''}
       style={{
         minHeight: '100vh',
-        background: isPrintPreview
+        background: printMode
           ? '#ffffff'
           : themeColors.background,
         fontFamily: "'Nunito', 'Segoe UI', sans-serif",
-        color: isPrintPreview ? '#1a1a2e' : themeColors.text,
+        color: printMode ? '#1a1a2e' : themeColors.text,
         padding: '0',
       }}
     >
@@ -1443,29 +1599,124 @@ function BellCurveApp() {
           transition: opacity 0.2s ease;
         }
 
-        .print-preview {
-          background: #ffffff !important;
-          color: #1a1a2e !important;
+        /* Print mode toolbar */
+        .print-toolbar {
+          position: sticky;
+          top: 0;
+          z-index: 1000;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 12px 32px;
+          background: #1a1a2e;
+          color: white;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.2);
+        }
+        .print-toolbar button {
+          padding: 8px 20px;
+          border-radius: 8px;
+          border: none;
+          cursor: pointer;
+          font-family: 'Nunito', sans-serif;
+          font-weight: 700;
+          font-size: 14px;
+          transition: all 0.15s ease;
+        }
+        .print-toolbar .btn-back {
+          background: rgba(255,255,255,0.15);
+          color: white;
+        }
+        .print-toolbar .btn-back:hover {
+          background: rgba(255,255,255,0.25);
+        }
+        .print-toolbar .btn-print {
+          background: #667eea;
+          color: white;
+        }
+        .print-toolbar .btn-print:hover {
+          background: #5569d9;
         }
 
-        .print-preview .no-print {
-          display: none !important;
+        /* Report print view */
+        .report-view {
+          max-width: 900px;
+          margin: 0 auto;
+          padding: 40px 32px;
+          background: white;
+          color: #1a1a2e;
+        }
+        .report-header {
+          text-align: center;
+          border-bottom: 3px solid #667eea;
+          padding-bottom: 24px;
+          margin-bottom: 32px;
+        }
+        .report-header h1 {
+          margin: 0 0 8px 0;
+          font-size: 28px;
+          font-weight: 700;
+          color: #1a1a2e;
+        }
+        .report-header .subtitle {
+          font-size: 15px;
+          color: #5b657a;
+          margin: 0;
+        }
+        .report-summary-grid {
+          display: grid;
+          grid-template-columns: 1fr 300px;
+          gap: 32px;
+          margin-bottom: 32px;
+        }
+        .report-chart-box {
+          border: 1px solid #d2d8e5;
+          border-radius: 12px;
+          padding: 20px;
+          background: #fafbfd;
+        }
+        .report-legend-box {
+          border: 1px solid #d2d8e5;
+          border-radius: 12px;
+          padding: 16px;
+          background: #fafbfd;
+        }
+        .report-legend-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding: 6px 0;
+          border-bottom: 1px solid #eef0f5;
+          font-size: 13px;
+        }
+        .report-legend-row:last-child {
+          border-bottom: none;
         }
 
-        .print-preview .print-only {
-          display: block !important;
+        /* Results table */
+        .results-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+          margin-top: 8px;
         }
-
-        .print-preview .chart-container {
-          box-shadow: none !important;
-          border: 1px solid #ddd !important;
-          background: #ffffff !important;
+        .results-table thead th {
+          background: #f2f5fb;
+          border: 1px solid #d2d8e5;
+          padding: 10px 14px;
+          text-align: left;
+          font-weight: 700;
+          color: #1b1f2e;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
-
-        .print-preview .presentation-header {
-          border-bottom: 2px solid #667eea;
-          padding-bottom: 20px;
-          margin-bottom: 30px;
+        .results-table tbody td {
+          border: 1px solid #d2d8e5;
+          padding: 10px 14px;
+          color: #1b1f2e;
+        }
+        .results-table tbody tr:nth-child(even) {
+          background: #f9fafb;
         }
 
         /* Print Styles for PDF Export */
@@ -1473,85 +1724,63 @@ function BellCurveApp() {
           body {
             background: white !important;
           }
-
-          .no-print {
+          .no-print, .print-toolbar {
             display: none !important;
           }
-
           .print-only {
             display: block !important;
           }
-
+          .report-view {
+            padding: 0;
+            max-width: 100%;
+          }
+          .report-chart-box, .report-legend-box {
+            border: 1px solid #bbb !important;
+            background: white !important;
+            box-shadow: none !important;
+          }
+          .results-table thead {
+            display: table-header-group;
+          }
+          .results-table tbody tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
           .chart-container {
             box-shadow: none !important;
-            border: 2px solid #333 !important;
+            border: 1px solid #bbb !important;
+            background: white !important;
             break-inside: avoid;
             page-break-inside: avoid;
-            background: white !important;
           }
-
           .presentation-header {
             border-bottom: 2px solid #667eea;
             padding-bottom: 20px;
             margin-bottom: 30px;
             color: #1a1a2e !important;
           }
-
           .presentation-header h2 {
             color: #1a1a2e !important;
           }
-
-          .chart-title {
-            color: #1a1a2e !important;
-          }
-
-          /* Make all text dark for print */
-          text, p, span, div {
-            color: #1a1a2e !important;
-          }
-
-          /* Ensure curve is visible - uses custom color from state */
           svg path[d*="M"] {
             stroke-width: 3 !important;
           }
-
-          /* Ensure test markers are visible */
-          circle {
-            stroke: #333 !important;
+          .report-summary-grid {
+            break-inside: avoid;
+            page-break-inside: avoid;
           }
-
-          /* Legend items */
-          .legend-item {
-            color: #1a1a2e !important;
+          .page-break-before {
+            page-break-before: always;
+            break-before: page;
           }
-
-          /* Info panel */
-          .info-panel {
-            background: #f8f9fa !important;
-            border: 1px solid #ddd !important;
-            color: #1a1a2e !important;
-          }
-
-          .info-panel h4, .info-panel p {
-            color: #1a1a2e !important;
-          }
-
-          /* Summary section */
-          .editable-summary {
-            background: white !important;
-            border: 1px solid #ddd !important;
-            color: #1a1a2e !important;
-          }
-
           /* Ensure colors are visible in print */
           * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             color-adjust: exact !important;
           }
-
           @page {
-            margin: 0.75in;
+            margin: 0.6in;
             size: letter;
           }
         }
@@ -1616,8 +1845,8 @@ function BellCurveApp() {
         }
       `}</style>
 
-      {/* Header */}
-      <div style={{
+      {/* Header - hidden in print mode */}
+      {!printMode && <div style={{
         padding: '30px 40px',
         borderBottom: '1px solid var(--header-border)',
         display: 'flex',
@@ -1692,26 +1921,17 @@ function BellCurveApp() {
           >
             📊 Presentation
           </button>
-          {mode === 'presentation' && tests.length > 0 && (
-            <>
-              <button
-                className="mode-btn inactive no-print"
-                onClick={() => setIsPrintPreview(!isPrintPreview)}
-                title="Toggle print preview"
-              >
-                {isPrintPreview ? '🧾 Exit Preview' : '🧾 Print Preview'}
-              </button>
-              <button
-                className="mode-btn inactive no-print"
-                onClick={handleDownloadPdf}
-                title="Download or save as PDF"
-              >
-                📄 Download PDF
-              </button>
-            </>
+          {mode === 'presentation' && tests.length > 0 && !printMode && (
+            <button
+              className="mode-btn inactive no-print"
+              onClick={() => setPrintMode(true)}
+              title="Print preview"
+            >
+              🧾 Print Preview
+            </button>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Branding Configuration Panel */}
       {showBrandingPanel && (
@@ -2269,7 +2489,229 @@ function BellCurveApp() {
         </div>
       )}
 
-      <div style={{ padding: '40px', maxWidth: '1400px', margin: '0 auto' }}>
+      {/* Manage Tests Panel */}
+      {showManageTestsPanel && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }} className="no-print">
+          <div style={{
+            background: themeColors.cardBg,
+            borderRadius: '24px',
+            padding: '40px',
+            maxWidth: '900px',
+            width: '100%',
+            border: `1px solid ${themeColors.cardBorder}`,
+            maxHeight: '85vh',
+            overflowY: 'auto',
+            boxShadow: 'var(--shadow)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+              <h2 style={{
+                margin: 0,
+                fontSize: '28px',
+                fontWeight: 700,
+                color: themeColors.text,
+              }}>
+                🧪 Manage Test Library
+              </h2>
+              <button
+                className="control-btn"
+                onClick={() => {
+                  setShowManageTestsPanel(false);
+                  setEditingPreset(null);
+                  setNewPresetName('');
+                  setNewPresetSubtests('');
+                }}
+                style={{ padding: '8px 16px' }}
+              >
+                Close
+              </button>
+            </div>
+
+            {/* Add New Test Battery */}
+            <div style={{
+              background: 'var(--surface)',
+              borderRadius: '16px',
+              padding: '24px',
+              marginBottom: '24px',
+              border: `1px solid ${themeColors.cardBorder}`,
+            }}>
+              <h3 style={{
+                margin: '0 0 16px 0',
+                fontSize: '16px',
+                fontWeight: 600,
+                color: themeColors.text,
+              }}>
+                Add New Test Battery
+              </h3>
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
+                <input
+                  type="text"
+                  placeholder="Test Battery Name (e.g., WISC-V)"
+                  value={newPresetName}
+                  onChange={(e) => setNewPresetName(e.target.value)}
+                  className="input-field"
+                  style={{ flex: 1 }}
+                />
+              </div>
+              <textarea
+                placeholder="Enter subtests/clusters, one per line:&#10;Full Scale IQ&#10;Verbal Comprehension Index&#10;Working Memory Index"
+                value={newPresetSubtests}
+                onChange={(e) => setNewPresetSubtests(e.target.value)}
+                className="input-field"
+                style={{ width: '100%', minHeight: '100px', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+              <button
+                className="add-btn"
+                onClick={handleAddCustomPreset}
+                disabled={!newPresetName.trim()}
+                style={{ marginTop: '16px' }}
+              >
+                + Add Test Battery
+              </button>
+            </div>
+
+            {/* Test Battery List */}
+            <div>
+              <h3 style={{
+                margin: '0 0 16px 0',
+                fontSize: '16px',
+                fontWeight: 600,
+                color: themeColors.text,
+              }}>
+                All Test Batteries ({getAllTestBatteries().length})
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto' }}>
+                {getAllTestBatteries().map((battery, index) => (
+                  <div
+                    key={battery.id || battery.name}
+                    style={{
+                      background: 'var(--surface)',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      border: `1px solid ${themeColors.cardBorder}`,
+                    }}
+                  >
+                    {editingPreset && (editingPreset.id === battery.id || editingPreset.name === battery.name) ? (
+                      /* Edit Mode */
+                      <div>
+                        <input
+                          type="text"
+                          value={editingPreset.name}
+                          onChange={(e) => setEditingPreset({ ...editingPreset, name: e.target.value })}
+                          className="input-field"
+                          style={{ width: '100%', marginBottom: '12px', fontWeight: 600 }}
+                        />
+                        <textarea
+                          value={editingPreset.subtestsText}
+                          onChange={(e) => setEditingPreset({ ...editingPreset, subtestsText: e.target.value })}
+                          className="input-field"
+                          style={{ width: '100%', minHeight: '120px', resize: 'vertical', fontFamily: 'inherit' }}
+                          placeholder="Enter subtests, one per line"
+                        />
+                        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                          <button
+                            className="add-btn"
+                            onClick={handleSavePresetEdit}
+                            style={{ padding: '8px 16px' }}
+                          >
+                            Save Changes
+                          </button>
+                          <button
+                            className="control-btn"
+                            onClick={() => setEditingPreset(null)}
+                            style={{ padding: '8px 16px' }}
+                          >
+                            Cancel
+                          </button>
+                          {editingPreset.isCustom && (
+                            <button
+                              className="control-btn"
+                              onClick={() => handleDeletePreset(editingPreset)}
+                              style={{ padding: '8px 16px', color: '#ff6b6b', marginLeft: 'auto' }}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* View Mode */
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <div>
+                            <div style={{ fontWeight: 600, color: themeColors.text, marginBottom: '4px' }}>
+                              {battery.name}
+                              {battery.isCustom && (
+                                <span style={{
+                                  marginLeft: '8px',
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  background: 'var(--primary)',
+                                  color: '#fff',
+                                  borderRadius: '4px',
+                                }}>
+                                  Custom
+                                </span>
+                              )}
+                              {battery.isOverride && (
+                                <span style={{
+                                  marginLeft: '8px',
+                                  fontSize: '11px',
+                                  padding: '2px 8px',
+                                  background: '#f59e0b',
+                                  color: '#fff',
+                                  borderRadius: '4px',
+                                }}>
+                                  Modified
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: '13px', color: themeColors.textSecondary }}>
+                              {battery.subtests.length} subtests: {battery.subtests.slice(0, 3).join(', ')}{battery.subtests.length > 3 ? '...' : ''}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              className="control-btn"
+                              onClick={() => handleEditPreset({ ...battery, originalName: battery.name })}
+                              style={{ padding: '6px 12px', fontSize: '12px' }}
+                            >
+                              Edit
+                            </button>
+                            {battery.isOverride && (
+                              <button
+                                className="control-btn"
+                                onClick={() => handleResetToBuiltIn(battery.originalName || battery.name)}
+                                style={{ padding: '6px 12px', fontSize: '12px' }}
+                              >
+                                Reset
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ padding: printMode ? '0' : '40px', maxWidth: printMode ? 'none' : '1400px', margin: '0 auto' }}>
         {mode === 'input' ? (
           /* INPUT MODE */
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
@@ -2343,16 +2785,30 @@ function BellCurveApp() {
                 marginBottom: '28px',
                 border: `1px solid ${themeColors.cardBorder}`,
               }}>
-                <h3 style={{
-                  margin: '0 0 20px 0',
-                  fontSize: '18px',
-                  fontWeight: 700,
-                  color: themeColors.text,
-                  letterSpacing: '1px',
-                  textTransform: 'uppercase',
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '20px',
                 }}>
-                  ➕ Add Test Score
-                </h3>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '18px',
+                    fontWeight: 700,
+                    color: themeColors.text,
+                    letterSpacing: '1px',
+                    textTransform: 'uppercase',
+                  }}>
+                    ➕ Add Test Score
+                  </h3>
+                  <button
+                    className="control-btn"
+                    onClick={() => setShowManageTestsPanel(true)}
+                    style={{ fontSize: '12px', padding: '8px 14px' }}
+                  >
+                    Manage Test Library
+                  </button>
+                </div>
                 
                 <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
                   <div style={{ flex: 2, position: 'relative' }} ref={autocompleteRef}>
@@ -2818,6 +3274,273 @@ function BellCurveApp() {
               </div>
             </div>
           </div>
+        ) : printMode ? (
+          /* REPORT PRINT VIEW */
+          <div>
+            {/* Print toolbar - hidden when actually printing */}
+            <div className="print-toolbar">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button className="btn-back" onClick={() => setPrintMode(false)}>
+                  ← Back to Presentation
+                </button>
+                <span style={{ fontSize: '14px', opacity: 0.7 }}>Report Preview</span>
+              </div>
+              <button className="btn-print" onClick={handlePrint}>
+                🖨️ Print / Save PDF
+              </button>
+            </div>
+
+            <div className="report-view">
+              {/* ─── PAGE 1: SUMMARY ─── */}
+
+              {/* Report Header */}
+              <div className="report-header">
+                {branding.schoolLogo && (
+                  <img
+                    src={branding.schoolLogo}
+                    alt="School Logo"
+                    style={{ maxWidth: '120px', maxHeight: '60px', objectFit: 'contain', marginBottom: '12px' }}
+                  />
+                )}
+                <h1>
+                  {studentName
+                    ? `${studentName}'s Assessment Report`
+                    : 'Student Assessment Report'}
+                </h1>
+                {branding.schoolName && (
+                  <p className="subtitle">{branding.schoolName}</p>
+                )}
+                {assessmentDate && (
+                  <p className="subtitle">
+                    Assessment Date: {new Date(assessmentDate).toLocaleDateString('en-US', {
+                      year: 'numeric', month: 'long', day: 'numeric'
+                    })}
+                  </p>
+                )}
+              </div>
+
+              {/* Summary grid: Chart + Legend */}
+              {getVisibleTests().length > 0 && (() => {
+                const selectedTests = getVisibleTests();
+                const sortedTests = [...selectedTests].sort((a, b) => b.score - a.score);
+                const scoreGroups = groupTestsByScore(selectedTests);
+                const dotStyle = getDotStyle(selectedTests.length);
+
+                return (
+                  <div className="report-summary-grid">
+                    {/* LEFT: Bell curve chart (clean, minimal) */}
+                    <div className="report-chart-box">
+                      <h3 style={{ margin: '0 0 12px 0', fontSize: '15px', fontWeight: 700, color: '#1b1f2e' }}>
+                        Score Distribution
+                      </h3>
+                      <svg viewBox="0 0 800 380" style={{ width: '100%', height: 'auto' }}>
+                        {/* Grid lines */}
+                        {[55, 70, 85, 100, 115, 130, 145].map((score) => (
+                          <line
+                            key={score}
+                            x1={getScoreX(score)}
+                            y1={chartTopPadding}
+                            x2={getScoreX(score)}
+                            y2={chartBottomY}
+                            stroke="#d2d8e5"
+                            strokeDasharray="4,4"
+                          />
+                        ))}
+
+                        {/* Average range highlight */}
+                        <path d={averageAreaPath} fill="rgba(27, 31, 46, 0.06)" />
+
+                        {/* Bell curve */}
+                        <path
+                          d={bellPath}
+                          fill={`${bellCurveColor}20`}
+                          stroke={bellCurveColor}
+                          strokeWidth="2.5"
+                        />
+
+                        {/* Gradient definition */}
+                        <defs>
+                          <filter id="printGlow">
+                            <feGaussianBlur stdDeviation="2" result="blur" />
+                            <feMerge>
+                              <feMergeNode in="blur" />
+                              <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                          </filter>
+                        </defs>
+
+                        {/* Score labels on x-axis */}
+                        {SCORE_LABELS.map(({ score, label }) => (
+                          <g key={score}>
+                            <text x={getScoreX(score)} y="330" textAnchor="middle" fill="#2c344b" fontSize="12" fontWeight="600" fontFamily="Nunito, sans-serif">
+                              {score}
+                            </text>
+                            <text x={getScoreX(score)} y="348" textAnchor="middle" fill="#6c7489" fontSize="9" fontFamily="Nunito, sans-serif">
+                              {label}
+                            </text>
+                          </g>
+                        ))}
+
+                        {/* Average range label */}
+                        <text x={getScoreX(100)} y="368" textAnchor="middle" fill="#4b556b" fontSize="10" fontFamily="Nunito, sans-serif" fontWeight="600">
+                          ← Average Range (85-115) →
+                        </text>
+
+                        {/* Score dots */}
+                        {dotStyle.clusterMode ? (
+                          /* Cluster-only mode (25+ tests): one dot per unique score */
+                          Array.from(scoreGroups.entries()).map(([score, testsAtScore]) => {
+                            const x = getScoreX(score);
+                            const y = getScoreY(score);
+                            return (
+                              <g key={`cluster-${score}`}>
+                                <circle cx={x} cy={y} r={dotStyle.dotRadius + 2} fill={testsAtScore[0].color} stroke="white" strokeWidth="1.5" />
+                                {testsAtScore.length > 1 && (
+                                  <text x={x} y={y - dotStyle.dotRadius - 4} textAnchor="middle" fill="#1b1f2e" fontSize="8" fontWeight="700" fontFamily="Nunito, sans-serif">
+                                    ×{testsAtScore.length}
+                                  </text>
+                                )}
+                              </g>
+                            );
+                          })
+                        ) : (
+                          /* Normal mode: individual dots, slightly offset if same score */
+                          (() => {
+                            const allDots = [];
+                            scoreGroups.forEach((testsAtScore, score) => {
+                              const x = getScoreX(score);
+                              const baseY = getScoreY(score);
+                              if (testsAtScore.length === 1) {
+                                allDots.push(
+                                  <g key={testsAtScore[0].id}>
+                                    <circle cx={x} cy={baseY} r={dotStyle.dotRadius} fill={testsAtScore[0].color} stroke="white" strokeWidth="1.5" />
+                                  </g>
+                                );
+                              } else {
+                                /* Cluster: one shared dot with ×N badge */
+                                allDots.push(
+                                  <g key={`cluster-${score}`}>
+                                    <circle cx={x} cy={baseY} r={dotStyle.dotRadius + 2} fill={testsAtScore[0].color} stroke="white" strokeWidth="1.5" />
+                                    <text x={x} y={baseY - dotStyle.dotRadius - 4} textAnchor="middle" fill="#1b1f2e" fontSize="8" fontWeight="700" fontFamily="Nunito, sans-serif">
+                                      ×{testsAtScore.length}
+                                    </text>
+                                  </g>
+                                );
+                              }
+                            });
+                            return allDots;
+                          })()
+                        )}
+                      </svg>
+                    </div>
+
+                    {/* RIGHT: Score Legend */}
+                    <div className="report-legend-box">
+                      <h3 style={{ margin: '0 0 10px 0', fontSize: '14px', fontWeight: 700, color: '#1b1f2e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                        Score Legend
+                      </h3>
+                      <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                        {sortedTests.map((test) => (
+                          <div key={test.id} className="report-legend-row">
+                            <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: test.color, flexShrink: 0 }} />
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, color: '#1b1f2e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {test.name}
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right', flexShrink: 0, fontSize: '12px' }}>
+                              <span style={{ fontWeight: 700, color: test.color }}>{test.score}</span>
+                              <span style={{ color: '#5b657a', marginLeft: '6px' }}>({formatPercentile(getPercentileRank(test.score))})</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Notes/Interpretation section */}
+              {computedSummary && (
+                <div style={{
+                  border: '1px solid #d2d8e5',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  marginBottom: '32px',
+                  background: '#fafbfd',
+                }}>
+                  <h3 style={{ margin: '0 0 10px 0', fontSize: '15px', fontWeight: 700, color: '#1b1f2e' }}>
+                    Summary & Interpretation
+                  </h3>
+                  <p style={{ margin: 0, fontSize: '13px', lineHeight: 1.7, color: '#3b455c' }}>
+                    {computedSummary}
+                  </p>
+                </div>
+              )}
+
+              {/* ─── PAGE 2+: FULL RESULTS TABLE ─── */}
+              {getVisibleTests().length > 0 && (() => {
+                const selectedTests = getVisibleTests();
+                const sortedTests = [...selectedTests].sort((a, b) => b.score - a.score);
+
+                return (
+                  <div className="page-break-before">
+                    <h2 style={{ margin: '0 0 16px 0', fontSize: '20px', fontWeight: 700, color: '#1b1f2e', borderBottom: '2px solid #667eea', paddingBottom: '10px' }}>
+                      Full Results
+                    </h2>
+                    <table className="results-table">
+                      <thead>
+                        <tr>
+                          <th style={{ width: '30px' }}></th>
+                          <th>Test Name</th>
+                          <th style={{ width: '100px' }}>Standard Score</th>
+                          <th style={{ width: '90px' }}>Percentile</th>
+                          <th style={{ width: '120px' }}>Range</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sortedTests.map((test) => (
+                          <tr key={test.id}>
+                            <td>
+                              <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: test.color, margin: '0 auto' }} />
+                            </td>
+                            <td style={{ fontWeight: 600 }}>{test.name}</td>
+                            <td style={{ fontWeight: 700, color: test.color, textAlign: 'center' }}>{test.score}</td>
+                            <td style={{ textAlign: 'center' }}>{formatPercentile(getPercentileRank(test.score))}</td>
+                            <td>{getScoreDescription(test.score)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {/* Summary statistics */}
+                    <div style={{ display: 'flex', gap: '24px', marginTop: '24px', padding: '16px', background: '#f2f5fb', borderRadius: '8px', fontSize: '13px' }}>
+                      <div><strong>Tests:</strong> {sortedTests.length}</div>
+                      <div><strong>Mean Score:</strong> {Math.round(sortedTests.reduce((sum, t) => sum + t.score, 0) / sortedTests.length)}</div>
+                      <div><strong>Highest:</strong> {Math.max(...sortedTests.map(t => t.score))}</div>
+                      <div><strong>Lowest:</strong> {Math.min(...sortedTests.map(t => t.score))}</div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Report footer */}
+              <div style={{
+                marginTop: '40px',
+                paddingTop: '16px',
+                borderTop: '1px solid #d2d8e5',
+                fontSize: '11px',
+                color: '#5b657a',
+                textAlign: 'center',
+              }}>
+                {branding.footerText && <p style={{ margin: '0 0 6px 0' }}>{branding.footerText}</p>}
+                <p style={{ margin: 0 }}>
+                  Generated on {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  {branding.schoolName && ` · ${branding.schoolName}`}
+                </p>
+              </div>
+            </div>
+          </div>
         ) : (
           /* PRESENTATION MODE */
           <div>
@@ -2950,8 +3673,8 @@ function BellCurveApp() {
                                 }
                               }
                             }}
-                            onMouseEnter={() => setHoveredTestId(test.id)}
-                            onMouseLeave={() => setHoveredTestId(null)}
+                            onMouseEnter={() => { hoverSourceRef.current = 'sidebar'; setHoveredTestId(test.id); }}
+                            onMouseLeave={() => { setHoveredTestId(null); hoverSourceRef.current = null; }}
                             style={{
                               color: test.color,
                               padding: '10px 14px',
@@ -3250,8 +3973,8 @@ function BellCurveApp() {
                         <g
                           key={test.id}
                           className="score-marker"
-                          onMouseEnter={() => setHoveredTestId(test.id)}
-                          onMouseLeave={() => setHoveredTestId(null)}
+                          onMouseEnter={() => { hoverSourceRef.current = 'chart'; setHoveredTestId(test.id); }}
+                          onMouseLeave={() => { setHoveredTestId(null); hoverSourceRef.current = null; }}
                           onClick={() => setActiveTestId(test.id)}
                           style={{
                             cursor: 'pointer',
@@ -3476,8 +4199,8 @@ function BellCurveApp() {
                         return (
                           <div
                             key={test.id}
-                            onMouseEnter={() => setHoveredTestId(test.id)}
-                            onMouseLeave={() => setHoveredTestId(null)}
+                            onMouseEnter={() => { hoverSourceRef.current = 'chart'; setHoveredTestId(test.id); }}
+                            onMouseLeave={() => { setHoveredTestId(null); hoverSourceRef.current = null; }}
                             onClick={() => {
                               setActiveTestId(test.id);
                               setOpenClusterId(null);
